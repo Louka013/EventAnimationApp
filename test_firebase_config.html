@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Firebase Config</title>
+</head>
+<body>
+    <h1>Testing Firebase Configuration</h1>
+    <button onclick="testFirebase()">Test Firebase Connection</button>
+    <button onclick="addTestAnimation()">Add Test Animation</button>
+    <div id="result"></div>
+
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
+        import { getFirestore, collection, addDoc, getDocs, query, where, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyAWGEHQK8f61d4OCgreDRu0fXUjt_sG14w",
+            authDomain: "data-base-test-6ef5f.firebaseapp.com",
+            projectId: "data-base-test-6ef5f",
+            storageBucket: "data-base-test-6ef5f.firebasestorage.app",
+            messagingSenderId: "131672469882",
+            appId: "1:131672469882:web:5362c975813f74955be6c3"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        window.testFirebase = async function() {
+            try {
+                const result = document.getElementById('result');
+                result.innerHTML = 'Testing Firebase connection...';
+                
+                // Test reading from animation_configs collection
+                const querySnapshot = await getDocs(collection(db, 'animation_configs'));
+                result.innerHTML = `✅ Firebase connected! Found ${querySnapshot.size} animation configs`;
+                
+                querySnapshot.forEach((doc) => {
+                    console.log(doc.id, " => ", doc.data());
+                });
+                
+            } catch (error) {
+                document.getElementById('result').innerHTML = `❌ Error: ${error.message}`;
+                console.error('Error:', error);
+            }
+        };
+
+        window.addTestAnimation = async function() {
+            try {
+                const result = document.getElementById('result');
+                result.innerHTML = 'Adding test animation...';
+                
+                // Create a test animation for user_1_1
+                const now = new Date();
+                const futureTime = new Date(now.getTime() + 10 * 60 * 1000); // 10 minutes from now
+                const startTime = futureTime.toISOString().slice(0, 16); // Format: 2024-01-15T20:30
+                
+                const testConfig = {
+                    animationStartTime: startTime,
+                    eventType: 'football_stadium',
+                    animationType: 'wave',
+                    animationData: {
+                        animationId: 'test_wave_animation',
+                        frameRate: 15,
+                        frameCount: 80,
+                        users: {
+                            'user_1_1': {
+                                frames: [
+                                    'https://firebasestorage.googleapis.com/v0/b/data-base-test-6ef5f.appspot.com/o/animations/wave_animation/1_1/frame_000.png',
+                                    'https://firebasestorage.googleapis.com/v0/b/data-base-test-6ef5f.appspot.com/o/animations/wave_animation/1_1/frame_001.png'
+                                ]
+                            }
+                        }
+                    },
+                    createdAt: serverTimestamp(),
+                    status: 'active'
+                };
+                
+                // First deactivate any existing animations
+                const existingQuery = query(
+                    collection(db, 'animation_configs'),
+                    where('eventType', '==', 'football_stadium'),
+                    where('status', '==', 'active')
+                );
+                
+                const existingSnapshot = await getDocs(existingQuery);
+                console.log(`Found ${existingSnapshot.size} existing animations to deactivate`);
+                
+                // Add the test animation
+                const docRef = await addDoc(collection(db, 'animation_configs'), testConfig);
+                
+                result.innerHTML = `✅ Test animation added! ID: ${docRef.id}<br>
+                    Animation Type: wave<br>
+                    Event Type: football_stadium<br>
+                    Start Time: ${startTime}<br>
+                    User: user_1_1<br>
+                    Frames: 2`;
+                
+                console.log('Test animation added with ID:', docRef.id);
+                
+            } catch (error) {
+                document.getElementById('result').innerHTML = `❌ Error: ${error.message}`;
+                console.error('Error:', error);
+            }
+        };
+    </script>
+</body>
+</html>

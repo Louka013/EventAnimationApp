@@ -1,0 +1,59 @@
+{
+  "firebase": {
+    "project_id": "data-base-test-6ef5f",
+    "storage_bucket": "data-base-test-6ef5f.firebasestorage.app",
+    "service_account_key": null
+  },
+  "animations": {
+    "wave": {
+      "frame_rate": 15,
+      "frame_count": 80,
+      "duration_seconds": 5.33,
+      "pattern": "wave_horizontal",
+      "description": "Horizontal wave effect across the stadium"
+    },
+    "rainbow": {
+      "frame_rate": 12,
+      "frame_count": 60,
+      "duration_seconds": 5.0,
+      "pattern": "rainbow_cascade",
+      "description": "Rainbow colors cascading through sections"
+    },
+    "pulse": {
+      "frame_rate": 8,
+      "frame_count": 40,
+      "duration_seconds": 5.0,
+      "pattern": "pulse_radial",
+      "description": "Radial pulse effect from center"
+    },
+    "fireworks": {
+      "frame_rate": 18,
+      "frame_count": 120,
+      "duration_seconds": 6.67,
+      "pattern": "fireworks_burst",
+      "description": "Fireworks bursting across the stadium"
+    }
+  },
+  "grid": {
+    "default_rows": 20,
+    "default_cols": 30,
+    "max_rows": 50,
+    "max_cols": 100,
+    "stadium_layouts": {
+      "small": {"rows": 10, "cols": 15},
+      "medium": {"rows": 20, "cols": 30},
+      "large": {"rows": 30, "cols": 50},
+      "mega": {"rows": 50, "cols": 100}
+    }
+  },
+  "output": {
+    "base_path": "./animations",
+    "json_path": "./user_animations",
+    "url_template": "https://firebasestorage.googleapis.com/v0/b/{bucket}/o/animations/{animation}/{row}_{col}/frame_{frame:03d}.png"
+  },
+  "synchronization": {
+    "default_delay_minutes": 5,
+    "max_delay_minutes": 60,
+    "timezone": "Europe/Paris"
+  }
+}

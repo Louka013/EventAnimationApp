@@ -28,6 +28,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -35,11 +37,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.IOException
-import java.time.LocalDateTime
-import java.time.format.DateTimeFormatter
-import java.time.temporal.ChronoUnit
-import java.time.Instant
-import java.time.ZoneId
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
+import androidx.compose.runtime.DisposableEffect
 
 // Modèles de données simples pour les sélections
 data class Event(val name: String, val stands: List<String>)
@@ -59,7 +61,8 @@ data class AnimationFrame(
     val frameUrl: String
 )
 
-data class AnimationUser(
+// Legacy AnimationUser for backward compatibility
+data class LegacyAnimationUser(
     val frames: List<String>
 )
 
@@ -67,7 +70,7 @@ data class AnimationData(
     val animationId: String,
     val frameRate: Int,
     val frameCount: Int,
-    val users: Map<String, AnimationUser>
+    val users: Map<String, LegacyAnimationUser>
 )
 
 data class AnimationConfig(
@@ -86,6 +89,50 @@ data class UserSeat(
     val userId: String
 )
 
+data class UserAnimationPackage(
+    val userId: String,
+    val animationType: String,
+    val eventType: String,
+    val startTime: String,
+    val endTime: String,
+    val frames: List<String>,
+    val frameRate: Int,
+    val frameCount: Int,
+    val isActive: Boolean,
+    val isExpired: Boolean = false,
+    val animationId: String = "",
+    val duration: Double = 0.0,
+    val pattern: String = "",
+    val createdAt: String = ""
+)
+
+// New data models for synchronized animations
+data class SynchronizedAnimation(
+    val animationId: String,
+    val animationType: String,
+    val eventType: String,
+    val startTime: String,
+    val frameRate: Int,
+    val frameCount: Int,
+    val duration: Double,
+    val active: Boolean,
+    val createdAt: String,
+    val updatedAt: String,
+    val totalUsers: Int,
+    val pattern: String
+)
+
+data class AnimationUser(
+    val userId: String,
+    val animationId: String,
+    val animationType: String,
+    val frames: List<String>,
+    val startTime: String,
+    val frameRate: Int,
+    val frameCount: Int,
+    val createdAt: String
+)
+
 data class ScheduledAnimation(
     val animationType: String,
     val eventType: String,
@@ -100,20 +147,23 @@ data class ScheduledAnimation(
                 Log.d("Animation", "Calculating end time: startTime=$startTime, frameCount=$frameCount, frameRate=$frameRate")
                 
                 // Parse the start time - handle both formats from web interface
-                val startDateTime = if (startTime.contains("T") && startTime.length <= 16) {
+                val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
+                val startTimeFormatted = if (startTime.contains("T") && startTime.length <= 16) {
                     // Format from HTML datetime-local input: "2024-01-15T20:30"
-                    LocalDateTime.parse(startTime + ":00") // Add seconds if missing
+                    startTime + ":00" // Add seconds if missing
                 } else {
-                    // Try to parse as is
-                    LocalDateTime.parse(startTime)
+                    startTime
                 }
                 
+                val startDate = dateFormat.parse(startTimeFormatted)
                 val durationSeconds = frameCount.toDouble() / frameRate.toDouble()
                 Log.d("Animation", "Animation duration: ${durationSeconds} seconds")
                 
-                val endDateTime = startDateTime.plusSeconds(durationSeconds.toLong())
-                val result = endDateTime.toString()
+                val calendar = Calendar.getInstance()
+                calendar.time = startDate
+                calendar.add(Calendar.SECOND, durationSeconds.toInt())
                 
+                val result = dateFormat.format(calendar.time)
                 Log.d("Animation", "Calculated end time: $result")
                 result
             } catch (e: Exception) {
@@ -125,9 +175,12 @@ data class ScheduledAnimation(
         
         fun isAnimationExpired(endTime: String): Boolean {
             return try {
-                val endDateTime = LocalDateTime.parse(endTime)
-                val currentDateTime = LocalDateTime.now()
-                currentDateTime.isAfter(endDateTime)
+                val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
+                val endDate = dateFormat.parse(endTime)
+                val currentDate = Date()
+                val isExpired = currentDate.after(endDate)
+                Log.d("Animation", "Animation expiry check: current=$currentDate, end=$endDate, expired=$isExpired")
+                isExpired
             } catch (e: Exception) {
                 Log.e("Animation", "Error checking expiration: ${e.message}")
                 false // If we can't parse, assume not expired
@@ -228,7 +281,7 @@ class MainActivity : ComponentActivity() {
         val animationDataJson = jsonObject.getJSONObject("animationData")
         val usersJson = animationDataJson.getJSONObject("users")
         
-        val users = mutableMapOf<String, AnimationUser>()
+        val users = mutableMapOf<String, LegacyAnimationUser>()
         usersJson.keys().forEach { key ->
             val userJson = usersJson.getJSONObject(key)
             val framesArray = userJson.getJSONArray("frames")
@@ -236,7 +289,7 @@ class MainActivity : ComponentActivity() {
             for (i in 0 until framesArray.length()) {
                 frames.add(framesArray.getString(i))
             }
-            users[key] = AnimationUser(frames)
+            users[key] = LegacyAnimationUser(frames)
         }
 
         val animationData = AnimationData(
@@ -256,6 +309,250 @@ class MainActivity : ComponentActivity() {
     }
 
     companion object {
+        // Fonction pour générer l'ID utilisateur basé sur la position du siège
+        fun generateUserId(row: Int, seat: Int): String {
+            return "user_${row}_${seat}"
+        }
+        
+        // Fonction pour extraire le package d'animation pour un utilisateur spécifique
+        suspend fun getUserAnimationPackage(
+            httpClient: OkHttpClient,
+            userSeat: UserSeat
+        ): UserAnimationPackage? {
+            return withContext(Dispatchers.IO) {
+                try {
+                    val userId = generateUserId(userSeat.row, userSeat.seat)
+                    Log.d("Animation", "🔍 STARTING: Getting animation package for user: $userId")
+                    Log.d("Animation", "User seat details: event=${userSeat.event}, row=${userSeat.row}, seat=${userSeat.seat}")
+                    
+                    // D'abord, essayer via HTTP (si les fonctions Cloud sont déployées)
+                    Log.d("Animation", "🌐 Trying HTTP method first...")
+                    val httpResult = getUserAnimationPackageHttp(httpClient, userId, userSeat)
+                    if (httpResult != null) {
+                        Log.d("Animation", "✅ HTTP method successful: ${httpResult.frames.size} frames")
+                        return@withContext httpResult
+                    } else {
+                        Log.d("Animation", "❌ HTTP method failed, trying Firestore fallback...")
+                    }
+                    
+                    // Fallback: accès direct à Firestore
+                    Log.d("Animation", "🔥 Trying Firestore method...")
+                    val firestoreResult = getUserAnimationPackageFirestore(userId, userSeat)
+                    if (firestoreResult != null) {
+                        Log.d("Animation", "✅ Firestore method successful: ${firestoreResult.frames.size} frames")
+                    } else {
+                        Log.d("Animation", "❌ Firestore method failed")
+                    }
+                    return@withContext firestoreResult
+                } catch (e: Exception) {
+                    Log.e("Animation", "💥 CRITICAL ERROR getting user animation package: ${e.message}", e)
+                    null
+                }
+            }
+        }
+        
+        // Fonction HTTP pour obtenir le package d'animation utilisateur
+        private suspend fun getUserAnimationPackageHttp(
+            httpClient: OkHttpClient,
+            userId: String,
+            userSeat: UserSeat
+        ): UserAnimationPackage? {
+            return try {
+                Log.d("Animation", "🌐 HTTP: Trying to get package for $userId")
+                val request = Request.Builder()
+                    .url("https://us-central1-data-base-test-6ef5f.cloudfunctions.net/getActiveConfig")
+                    .get()
+                    .build()
+
+                val response = httpClient.newCall(request).execute()
+                Log.d("Animation", "🌐 HTTP: Response code: ${response.code}")
+                
+                if (response.isSuccessful) {
+                    val responseBody = response.body?.string()
+                    Log.d("Animation", "🌐 HTTP: Got response body: ${responseBody?.take(100)}...")
+                    if (responseBody != null) {
+                        val jsonObject = JSONObject(responseBody)
+                        return extractUserPackageFromJson(jsonObject, userId, userSeat)
+                    }
+                } else {
+                    Log.d("Animation", "🌐 HTTP: Failed with code ${response.code}")
+                }
+                null
+            } catch (e: Exception) {
+                Log.e("Animation", "🌐 HTTP: Error getting user package: ${e.message}")
+                null
+            }
+        }
+        
+        // Fonction Firestore pour obtenir le package d'animation utilisateur
+        private suspend fun getUserAnimationPackageFirestore(
+            userId: String,
+            userSeat: UserSeat
+        ): UserAnimationPackage? {
+            return try {
+                Log.d("Animation", "=== DEBUGGING USER PACKAGE FETCH ===")
+                Log.d("Animation", "Querying Firestore for user animation package: $userId")
+                Log.d("Animation", "User seat: event=${userSeat.event}, row=${userSeat.row}, seat=${userSeat.seat}")
+                
+                val eventTypeForAnimation = when (userSeat.event) {
+                    "Stade de foot" -> "football_stadium"
+                    "Salle de concert" -> "concert_hall"
+                    "Théâtre" -> "theater"
+                    else -> "general"
+                }
+                
+                Log.d("Animation", "Event type for animation: $eventTypeForAnimation")
+                
+                val db = FirebaseFirestore.getInstance()
+                val task = db.collection("animation_configs")
+                    .whereEqualTo("status", "active")
+                    .get()
+                    .await()
+                
+                Log.d("Animation", "Found ${task.documents.size} active configs")
+                
+                var mostRecentPackage: UserAnimationPackage? = null
+                var mostRecentTimestamp: Long = 0
+                
+                for (document in task.documents) {
+                    val data = document.data
+                    if (data != null) {
+                        val configEventType = data["eventType"] as? String ?: ""
+                        val animationType = data["animationType"] as? String ?: ""
+                        
+                        Log.d("Animation", "Processing config: eventType=$configEventType, animationType=$animationType")
+                        
+                        if (configEventType == eventTypeForAnimation || configEventType == "all") {
+                            Log.d("Animation", "Event type matches! Processing animation data...")
+                            
+                            val animationDataMap = data["animationData"] as? Map<String, Any>
+                            if (animationDataMap != null) {
+                                Log.d("Animation", "Animation data found: ${animationDataMap.keys}")
+                                
+                                val usersMap = animationDataMap["users"] as? Map<String, Any>
+                                if (usersMap != null) {
+                                    Log.d("Animation", "Users in animation: ${usersMap.keys}")
+                                    
+                                    val userFrames = usersMap[userId] as? Map<String, Any>
+                                    if (userFrames != null) {
+                                        Log.d("Animation", "Found frames for user $userId!")
+                                        
+                                        val frames = userFrames["frames"] as? List<String> ?: listOf()
+                                        val frameCount = (animationDataMap["frameCount"] as? Number)?.toInt() ?: 80
+                                        val frameRate = (animationDataMap["frameRate"] as? Number)?.toInt() ?: 15
+                                        val startTime = data["animationStartTime"] as? String ?: ""
+                                        
+                                        Log.d("Animation", "Frame data: ${frames.size} frames, $frameRate fps, $frameCount total")
+                                        
+                                        val endTime = ScheduledAnimation.calculateEndTime(startTime, frameCount, frameRate)
+                                        val isExpired = ScheduledAnimation.isAnimationExpired(endTime)
+                                        
+                                        Log.d("Animation", "Time data: start=$startTime, end=$endTime, expired=$isExpired")
+                                        
+                                        if (!isExpired) {
+                                            val createdAtTimestamp = data["createdAt"] as? com.google.firebase.Timestamp
+                                            val timestamp = createdAtTimestamp?.toDate()?.time ?: 0
+                                            
+                                            if (timestamp > mostRecentTimestamp) {
+                                                mostRecentTimestamp = timestamp
+                                                mostRecentPackage = UserAnimationPackage(
+                                                    userId = userId,
+                                                    animationType = animationType,
+                                                    eventType = configEventType,
+                                                    startTime = startTime,
+                                                    endTime = endTime,
+                                                    frames = frames,
+                                                    frameRate = frameRate,
+                                                    frameCount = frameCount,
+                                                    isActive = true,
+                                                    isExpired = false
+                                                )
+                                                Log.d("Animation", "Created user package for $userId with ${frames.size} frames")
+                                            }
+                                        } else {
+                                            Log.d("Animation", "Animation is expired, skipping")
+                                        }
+                                    } else {
+                                        Log.d("Animation", "No frames found for user $userId in animation")
+                                        Log.d("Animation", "Available users: ${usersMap.keys}")
+                                    }
+                                } else {
+                                    Log.d("Animation", "No users map found in animation data")
+                                }
+                            } else {
+                                Log.d("Animation", "No animation data found in config")
+                            }
+                        } else {
+                            Log.d("Animation", "Event type doesn't match: config=$configEventType, user=$eventTypeForAnimation")
+                        }
+                    }
+                }
+                
+                if (mostRecentPackage != null) {
+                    Log.d("Animation", "✅ SUCCESS: Found animation package for $userId: ${mostRecentPackage.frames.size} frames")
+                } else {
+                    Log.d("Animation", "❌ FAILED: No animation package found for user $userId")
+                }
+                
+                Log.d("Animation", "=== END DEBUGGING USER PACKAGE FETCH ===")
+                mostRecentPackage
+            } catch (e: Exception) {
+                Log.e("Animation", "❌ ERROR querying Firestore for user package: ${e.message}", e)
+                null
+            }
+        }
+        
+        // Fonction pour extraire le package utilisateur depuis JSON
+        private fun extractUserPackageFromJson(
+            jsonObject: JSONObject,
+            userId: String,
+            userSeat: UserSeat
+        ): UserAnimationPackage? {
+            return try {
+                val animationDataJson = jsonObject.getJSONObject("animationData")
+                val usersJson = animationDataJson.getJSONObject("users")
+                
+                if (usersJson.has(userId)) {
+                    val userJson = usersJson.getJSONObject(userId)
+                    val framesArray = userJson.getJSONArray("frames")
+                    val frames = mutableListOf<String>()
+                    for (i in 0 until framesArray.length()) {
+                        frames.add(framesArray.getString(i))
+                    }
+                    
+                    val frameCount = animationDataJson.getInt("frameCount")
+                    val frameRate = animationDataJson.getInt("frameRate")
+                    val startTime = jsonObject.getString("animationStartTime")
+                    val endTime = ScheduledAnimation.calculateEndTime(startTime, frameCount, frameRate)
+                    val isExpired = ScheduledAnimation.isAnimationExpired(endTime)
+                    
+                    if (!isExpired) {
+                        UserAnimationPackage(
+                            userId = userId,
+                            animationType = jsonObject.getString("animationType"),
+                            eventType = jsonObject.getString("eventType"),
+                            startTime = startTime,
+                            endTime = endTime,
+                            frames = frames,
+                            frameRate = frameRate,
+                            frameCount = frameCount,
+                            isActive = true,
+                            isExpired = false
+                        )
+                    } else {
+                        Log.d("Animation", "Animation expired for user $userId")
+                        null
+                    }
+                } else {
+                    Log.d("Animation", "No animation data found for user $userId")
+                    null
+                }
+            } catch (e: Exception) {
+                Log.e("Animation", "Error extracting user package from JSON: ${e.message}")
+                null
+            }
+        }
+        
         // Fonction helper pour obtenir la configuration d'animation
         suspend fun getActiveAnimationConfig(httpClient: OkHttpClient): AnimationConfig? {
             return withContext(Dispatchers.IO) {
@@ -313,12 +610,12 @@ class MainActivity : ComponentActivity() {
                             val animationDataMap = data["animationData"] as? Map<String, Any>
                             if (animationDataMap != null) {
                                 val usersMap = animationDataMap["users"] as? Map<String, Any>
-                                val users = mutableMapOf<String, AnimationUser>()
+                                val users = mutableMapOf<String, LegacyAnimationUser>()
                                 
                                 usersMap?.forEach { (userId, userData) ->
                                     val userDataMap = userData as? Map<String, Any>
                                     val frames = userDataMap?.get("frames") as? List<String> ?: listOf()
-                                    users[userId] = AnimationUser(frames)
+                                    users[userId] = LegacyAnimationUser(frames)
                                 }
                                 
                                 val animationData = AnimationData(
@@ -549,7 +846,7 @@ class MainActivity : ComponentActivity() {
             val animationDataJson = jsonObject.getJSONObject("animationData")
             val usersJson = animationDataJson.getJSONObject("users")
             
-            val users = mutableMapOf<String, AnimationUser>()
+            val users = mutableMapOf<String, LegacyAnimationUser>()
             usersJson.keys().forEach { key ->
                 val userJson = usersJson.getJSONObject(key)
                 val framesArray = userJson.getJSONArray("frames")
@@ -557,7 +854,7 @@ class MainActivity : ComponentActivity() {
                 for (i in 0 until framesArray.length()) {
                     frames.add(framesArray.getString(i))
                 }
-                users[key] = AnimationUser(frames)
+                users[key] = LegacyAnimationUser(frames)
             }
 
             val animationData = AnimationData(
@@ -574,6 +871,374 @@ class MainActivity : ComponentActivity() {
                 animationData = animationData,
                 status = jsonObject.getString("status")
             )
+        }
+        
+        // ===================================================================================
+        // NEW SYNCHRONIZED ANIMATION SYSTEM
+        // ===================================================================================
+        
+        /**
+         * Get event type for animation based on user selection
+         */
+        private fun getEventTypeForAnimation(eventName: String): String {
+            return when (eventName) {
+                "Stade de foot" -> "football_stadium"
+                "Théâtre" -> "theater"
+                "Salle de concert" -> "concert_hall"
+                "Salle de spectacle" -> "arena"
+                else -> "general"
+            }
+        }
+        
+        /**
+         * Calculate end time for an animation
+         */
+        private fun calculateEndTime(startTime: String, frameCount: Int, frameRate: Int): String {
+            return try {
+                val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
+                val startTimeFormatted = if (startTime.contains("T") && startTime.length <= 16) {
+                    startTime + ":00"
+                } else if (startTime.endsWith("Z")) {
+                    startTime.replace("Z", "")
+                } else {
+                    startTime
+                }
+                
+                val startDate = dateFormat.parse(startTimeFormatted)
+                val durationSeconds = frameCount.toDouble() / frameRate.toDouble()
+                
+                val calendar = Calendar.getInstance()
+                calendar.time = startDate
+                calendar.add(Calendar.SECOND, durationSeconds.toInt())
+                
+                dateFormat.format(calendar.time)
+            } catch (e: Exception) {
+                Log.e("Animation", "Error calculating end time: ${e.message}")
+                startTime
+            }
+        }
+        
+        /**
+         * Check if animation is expired
+         */
+        private fun isAnimationExpired(endTime: String): Boolean {
+            return try {
+                val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
+                val endDate = dateFormat.parse(endTime)
+                val currentDate = Date()
+                currentDate.after(endDate)
+            } catch (e: Exception) {
+                Log.e("Animation", "Error checking expiration: ${e.message}")
+                false
+            }
+        }
+        
+        /**
+         * Get synchronized animation from the new Firebase structure
+         * Structure: animations/{animationId}/users/{userId}
+         */
+        suspend fun getSynchronizedUserAnimation(
+            httpClient: OkHttpClient,
+            userSeat: UserSeat
+        ): UserAnimationPackage? {
+            return withContext(Dispatchers.IO) {
+                try {
+                    val userId = generateUserId(userSeat.row, userSeat.seat)
+                    Log.d("Animation", "🔄 SYNC: Getting synchronized animation for user: $userId")
+                    
+                    // Get active animations for this event type
+                    val eventTypeForAnimation = getEventTypeForAnimation(userSeat.event)
+                    val activeAnimations = getActiveSynchronizedAnimations(eventTypeForAnimation)
+                    
+                    if (activeAnimations.isEmpty()) {
+                        Log.d("Animation", "No active synchronized animations found")
+                        return@withContext null
+                    }
+                    
+                    // Get the most recent animation
+                    val mostRecentAnimation = activeAnimations.maxByOrNull { it.createdAt }
+                    if (mostRecentAnimation == null) {
+                        Log.d("Animation", "No recent animations found")
+                        return@withContext null
+                    }
+                    
+                    // Get user-specific animation data
+                    val userAnimationData = getUserAnimationData(mostRecentAnimation.animationId, userId)
+                        ?: return@withContext null.also { 
+                            Log.d("Animation", "No user animation data found for $userId") 
+                        }
+                    
+                    // Calculate end time
+                    val endTime = calculateEndTime(
+                        userAnimationData.startTime,
+                        userAnimationData.frameCount,
+                        userAnimationData.frameRate
+                    )
+                    
+                    // Check if animation is expired
+                    val isExpired = isAnimationExpired(endTime)
+                    
+                    val animationPackage = UserAnimationPackage(
+                        userId = userId,
+                        animationType = userAnimationData.animationType,
+                        eventType = eventTypeForAnimation,
+                        startTime = userAnimationData.startTime,
+                        endTime = endTime,
+                        frames = userAnimationData.frames,
+                        frameRate = userAnimationData.frameRate,
+                        frameCount = userAnimationData.frameCount,
+                        isActive = mostRecentAnimation.active && !isExpired,
+                        isExpired = isExpired,
+                        animationId = mostRecentAnimation.animationId,
+                        duration = mostRecentAnimation.duration,
+                        pattern = mostRecentAnimation.pattern,
+                        createdAt = userAnimationData.createdAt
+                    )
+                    
+                    Log.d("Animation", "✅ SYNC: Successfully created animation package with ${animationPackage.frames.size} frames")
+                    return@withContext animationPackage
+                    
+                } catch (e: Exception) {
+                    Log.e("Animation", "💥 SYNC ERROR: ${e.message}", e)
+                    return@withContext null
+                }
+            }
+        }
+        
+        /**
+         * Get all active synchronized animations for an event type
+         */
+        private suspend fun getActiveSynchronizedAnimations(eventType: String): List<SynchronizedAnimation> {
+            return try {
+                val db = FirebaseFirestore.getInstance()
+                val animationsRef = db.collection("animations")
+                    .whereEqualTo("eventType", eventType)
+                    .whereEqualTo("active", true)
+                
+                val snapshot = animationsRef.get().await()
+                val animations = mutableListOf<SynchronizedAnimation>()
+                
+                snapshot.documents.forEach { doc ->
+                    try {
+                        val animation = SynchronizedAnimation(
+                            animationId = doc.id,
+                            animationType = doc.getString("animationType") ?: "",
+                            eventType = doc.getString("eventType") ?: "",
+                            startTime = doc.getString("startTime") ?: "",
+                            frameRate = doc.getLong("frameRate")?.toInt() ?: 15,
+                            frameCount = doc.getLong("frameCount")?.toInt() ?: 80,
+                            duration = doc.getDouble("duration") ?: 5.0,
+                            active = doc.getBoolean("active") ?: false,
+                            createdAt = doc.getString("createdAt") ?: "",
+                            updatedAt = doc.getString("updatedAt") ?: "",
+                            totalUsers = doc.getLong("totalUsers")?.toInt() ?: 0,
+                            pattern = doc.getString("pattern") ?: ""
+                        )
+                        animations.add(animation)
+                    } catch (e: Exception) {
+                        Log.e("Animation", "Error parsing animation document: ${e.message}")
+                    }
+                }
+                
+                Log.d("Animation", "Found ${animations.size} active synchronized animations")
+                animations
+                
+            } catch (e: Exception) {
+                Log.e("Animation", "Error getting active synchronized animations: ${e.message}")
+                emptyList()
+            }
+        }
+        
+        /**
+         * Get user-specific animation data from Firebase
+         */
+        private suspend fun getUserAnimationData(animationId: String, userId: String): AnimationUser? {
+            return try {
+                val db = FirebaseFirestore.getInstance()
+                val userRef = db.collection("animations")
+                    .document(animationId)
+                    .collection("users")
+                    .document(userId)
+                
+                val snapshot = userRef.get().await()
+                
+                if (!snapshot.exists()) {
+                    Log.d("Animation", "No user animation data found for $userId in $animationId")
+                    return null
+                }
+                
+                val frames = snapshot.get("frames") as? List<String> ?: emptyList()
+                
+                AnimationUser(
+                    userId = snapshot.getString("userId") ?: userId,
+                    animationId = snapshot.getString("animationId") ?: animationId,
+                    animationType = snapshot.getString("animationType") ?: "",
+                    frames = frames,
+                    startTime = snapshot.getString("startTime") ?: "",
+                    frameRate = snapshot.getLong("frameRate")?.toInt() ?: 15,
+                    frameCount = snapshot.getLong("frameCount")?.toInt() ?: frames.size,
+                    createdAt = snapshot.getString("createdAt") ?: ""
+                )
+                
+            } catch (e: Exception) {
+                Log.e("Animation", "Error getting user animation data: ${e.message}")
+                null
+            }
+        }
+        
+        /**
+         * Listen for real-time animation updates
+         */
+        fun listenForAnimationUpdates(
+            eventType: String,
+            userId: String,
+            onAnimationUpdate: (UserAnimationPackage?) -> Unit
+        ): com.google.firebase.firestore.ListenerRegistration {
+            val db = FirebaseFirestore.getInstance()
+            
+            // Listen for changes in animations collection
+            return db.collection("animations")
+                .whereEqualTo("eventType", eventType)
+                .whereEqualTo("active", true)
+                .addSnapshotListener { snapshot, error ->
+                    if (error != null) {
+                        Log.e("Animation", "Error listening for animation updates: ${error.message}")
+                        return@addSnapshotListener
+                    }
+                    
+                    if (snapshot != null && !snapshot.isEmpty) {
+                        // Get the most recent animation
+                        val mostRecentDoc = snapshot.documents.maxByOrNull { 
+                            it.getString("createdAt") ?: "" 
+                        }
+                        
+                        if (mostRecentDoc != null) {
+                            val animationId = mostRecentDoc.id
+                            
+                            // Listen for user-specific data within this animation
+                            db.collection("animations")
+                                .document(animationId)
+                                .collection("users")
+                                .document(userId)
+                                .addSnapshotListener { userSnapshot, userError ->
+                                    if (userError != null) {
+                                        Log.e("Animation", "Error listening for user animation: ${userError.message}")
+                                        return@addSnapshotListener
+                                    }
+                                    
+                                    if (userSnapshot != null && userSnapshot.exists()) {
+                                        // Build UserAnimationPackage from the data
+                                        try {
+                                            val frames = userSnapshot.get("frames") as? List<String> ?: emptyList()
+                                            val startTime = userSnapshot.getString("startTime") ?: ""
+                                            val frameRate = userSnapshot.getLong("frameRate")?.toInt() ?: 15
+                                            val frameCount = userSnapshot.getLong("frameCount")?.toInt() ?: frames.size
+                                            
+                                            val endTime = calculateEndTime(startTime, frameCount, frameRate)
+                                            val isExpired = isAnimationExpired(endTime)
+                                            
+                                            val animationPackage = UserAnimationPackage(
+                                                userId = userId,
+                                                animationType = userSnapshot.getString("animationType") ?: "",
+                                                eventType = eventType,
+                                                startTime = startTime,
+                                                endTime = endTime,
+                                                frames = frames,
+                                                frameRate = frameRate,
+                                                frameCount = frameCount,
+                                                isActive = !isExpired,
+                                                isExpired = isExpired,
+                                                animationId = animationId,
+                                                duration = mostRecentDoc.getDouble("duration") ?: 5.0,
+                                                pattern = mostRecentDoc.getString("pattern") ?: "",
+                                                createdAt = userSnapshot.getString("createdAt") ?: ""
+                                            )
+                                            
+                                            onAnimationUpdate(animationPackage)
+                                        } catch (e: Exception) {
+                                            Log.e("Animation", "Error building animation package: ${e.message}")
+                                            onAnimationUpdate(null)
+                                        }
+                                    } else {
+                                        onAnimationUpdate(null)
+                                    }
+                                }
+                        }
+                    } else {
+                        onAnimationUpdate(null)
+                    }
+                }
+        }
+        
+        /**
+         * Schedule animation playback at the specified start time
+         */
+        fun scheduleAnimationPlayback(
+            animationPackage: UserAnimationPackage,
+            onAnimationStart: () -> Unit,
+            onAnimationFrame: (String) -> Unit,
+            onAnimationEnd: () -> Unit
+        ) {
+            try {
+                val startTime = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
+                    .parse(animationPackage.startTime.replace("Z", ""))
+                val currentTime = Date()
+                
+                if (startTime == null) {
+                    Log.e("Animation", "Invalid start time format: ${animationPackage.startTime}")
+                    return
+                }
+                
+                val delayMs = startTime.time - currentTime.time
+                
+                if (delayMs > 0) {
+                    Log.d("Animation", "Scheduling animation to start in ${delayMs}ms")
+                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                        playAnimationFrames(animationPackage, onAnimationStart, onAnimationFrame, onAnimationEnd)
+                    }, delayMs)
+                } else {
+                    Log.d("Animation", "Animation start time has passed, playing immediately")
+                    playAnimationFrames(animationPackage, onAnimationStart, onAnimationFrame, onAnimationEnd)
+                }
+                
+            } catch (e: Exception) {
+                Log.e("Animation", "Error scheduling animation playback: ${e.message}")
+            }
+        }
+        
+        /**
+         * Play animation frames in sequence
+         */
+        private fun playAnimationFrames(
+            animationPackage: UserAnimationPackage,
+            onAnimationStart: () -> Unit,
+            onAnimationFrame: (String) -> Unit,
+            onAnimationEnd: () -> Unit
+        ) {
+            Log.d("Animation", "🎬 Starting animation playback: ${animationPackage.animationType}")
+            onAnimationStart()
+            
+            val frameDurationMs = (1000.0 / animationPackage.frameRate).toLong()
+            val handler = android.os.Handler(android.os.Looper.getMainLooper())
+            
+            var currentFrame = 0
+            
+            val playNextFrame = object : Runnable {
+                override fun run() {
+                    if (currentFrame < animationPackage.frames.size) {
+                        val frameUrl = animationPackage.frames[currentFrame]
+                        Log.d("Animation", "Playing frame ${currentFrame + 1}/${animationPackage.frames.size}: $frameUrl")
+                        onAnimationFrame(frameUrl)
+                        currentFrame++
+                        handler.postDelayed(this, frameDurationMs)
+                    } else {
+                        Log.d("Animation", "🎬 Animation finished")
+                        onAnimationEnd()
+                    }
+                }
+            }
+            
+            playNextFrame.run()
         }
     }
 }
@@ -968,6 +1633,17 @@ fun WaitingRoomScreen(
     var isListening by remember { mutableStateOf(false) }
     var lastUpdateTime by remember { mutableStateOf(System.currentTimeMillis()) }
     
+    // État pour le package d'animation utilisateur
+    var userAnimationPackage by remember { mutableStateOf<UserAnimationPackage?>(null) }
+    var isLoadingPackage by remember { mutableStateOf(false) }
+    
+    // État pour les notifications de package
+    var showPackageNotification by remember { mutableStateOf(false) }
+    var packageNotificationMessage by remember { mutableStateOf("") }
+    
+    // HTTP client pour les requêtes
+    val httpClient = remember { OkHttpClient() }
+    
     // Déterminer le type d'événement pour le listener
     val eventTypeForAnimation = remember {
         when (userSeat.event) {
@@ -975,6 +1651,45 @@ fun WaitingRoomScreen(
             "Salle de concert" -> "concert_hall"
             "Théâtre" -> "theater"
             else -> "general"
+        }
+    }
+    
+    // Fonction pour afficher une notification de package
+    fun showPackageNotification(message: String) {
+        packageNotificationMessage = message
+        showPackageNotification = true
+        
+        // Masquer la notification après 3 secondes
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+            kotlinx.coroutines.delay(3000)
+            showPackageNotification = false
+        }
+    }
+    
+    // Fonction pour charger le package d'animation utilisateur
+    suspend fun loadUserAnimationPackage() {
+        isLoadingPackage = true
+        val animationPackage = MainActivity.getUserAnimationPackage(httpClient, userSeat)
+        val previousPackage = userAnimationPackage
+        userAnimationPackage = animationPackage
+        isLoadingPackage = false
+        
+        if (animationPackage != null) {
+            Log.d("Animation", "Loaded animation package for ${animationPackage.userId}: ${animationPackage.frames.size} frames")
+            
+            // Montrer une notification si c'est un nouveau package ou une mise à jour
+            if (previousPackage == null) {
+                showPackageNotification("📦 Package d'animation reçu! ${animationPackage.frames.size} frames")
+            } else if (previousPackage.userId != animationPackage.userId || 
+                       previousPackage.animationType != animationPackage.animationType ||
+                       previousPackage.frames.size != animationPackage.frames.size) {
+                showPackageNotification("🔄 Nouveau package d'animation! ${animationPackage.frames.size} frames")
+            }
+        } else {
+            Log.d("Animation", "No animation package available for user")
+            if (previousPackage != null) {
+                showPackageNotification("📦 Package d'animation supprimé")
+            }
         }
     }
     
@@ -1041,12 +1756,18 @@ fun WaitingRoomScreen(
                         Log.d("Animation", "Animation updated: ${mostRecentAnimation?.animationType}")
                         currentAnimation = mostRecentAnimation
                         lastUpdateTime = System.currentTimeMillis()
+                        
+                        // Charger le nouveau package d'animation utilisateur
+                        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+                            loadUserAnimationPackage()
+                        }
                     }
                 } else {
                     Log.d("Animation", "No active animations found")
                     if (currentAnimation != null) {
                         currentAnimation = null
                         lastUpdateTime = System.currentTimeMillis()
+                        userAnimationPackage = null // Supprimer le package si plus d'animation
                     }
                 }
             }
@@ -1058,13 +1779,20 @@ fun WaitingRoomScreen(
             isListening = false
         }
     }
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(24.dp)
-    ) {
+    
+    // Charger le package d'animation utilisateur au démarrage
+    LaunchedEffect(userSeat) {
+        loadUserAnimationPackage()
+    }
+    
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(24.dp)
+        ) {
         // Titre de la salle d'attente
         Text(
             text = "🎭 Salle d'Attente",
@@ -1144,6 +1872,48 @@ fun WaitingRoomScreen(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     
+                    // Informations sur le package d'animation utilisateur
+                    if (userAnimationPackage != null) {
+                        Text(
+                            text = "📦 Votre Package d'Animation",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.secondary
+                        )
+                        Text(
+                            text = "ID Utilisateur: ${userAnimationPackage?.userId}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = "Nombre de frames: ${userAnimationPackage?.frames?.size ?: 0}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = "Framerate: ${userAnimationPackage?.frameRate ?: 0} fps",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                    } else if (isLoadingPackage) {
+                        Text(
+                            text = "📦 Chargement du package d'animation...",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                    } else {
+                        Text(
+                            text = "📦 Aucun package d'animation disponible pour votre siège",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+                    
                     // Indicateur de mise à jour en temps réel
                     if (isListening) {
                         Text(
@@ -1210,6 +1980,25 @@ fun WaitingRoomScreen(
         ) {
             Text("← Retour à la sélection")
         }
+        }
+        
+        // Notification overlay pour les packages d'animation avec animation
+        AnimatedVisibility(
+            visible = showPackageNotification,
+            enter = slideInVertically(
+                initialOffsetY = { -it },
+                animationSpec = tween(500)
+            ) + fadeIn(animationSpec = tween(500)),
+            exit = slideOutVertically(
+                targetOffsetY = { -it },
+                animationSpec = tween(300)
+            ) + fadeOut(animationSpec = tween(300)),
+            modifier = Modifier.align(Alignment.TopCenter)
+        ) {
+            PackageNotification(
+                message = packageNotificationMessage
+            )
+        }
     }
 }
 
@@ -1228,20 +2017,23 @@ private fun getAnimationDisplayName(animationType: String): String {
 private fun formatDateTime(dateTimeString: String): String {
     return try {
         // Le format venant du HTML est "yyyy-MM-ddTHH:mm"
-        val inputDate = if (dateTimeString.contains("T") && dateTimeString.length <= 16) {
+        val inputFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
+        val startTimeFormatted = if (dateTimeString.contains("T") && dateTimeString.length <= 16) {
             // Format from HTML datetime-local input: "2024-01-15T20:30"
-            LocalDateTime.parse(dateTimeString + ":00") // Add seconds if missing
+            dateTimeString + ":00" // Add seconds if missing
         } else {
-            LocalDateTime.parse(dateTimeString)
+            dateTimeString
         }
-        val formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy à HH:mm:ss")
-        inputDate.format(formatter)
+        val date = inputFormat.parse(startTimeFormatted)
+        val outputFormat = SimpleDateFormat("dd/MM/yyyy à HH:mm:ss", Locale.FRENCH)
+        outputFormat.format(date)
     } catch (e: Exception) {
         try {
             // Essayons le format ISO 8601 complet
-            val inputDate = LocalDateTime.parse(dateTimeString.replace("Z", ""))
-            val formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy à HH:mm:ss")
-            inputDate.format(formatter)
+            val inputFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
+            val date = inputFormat.parse(dateTimeString.replace("Z", ""))
+            val outputFormat = SimpleDateFormat("dd/MM/yyyy à HH:mm:ss", Locale.FRENCH)
+            outputFormat.format(date)
         } catch (e2: Exception) {
             dateTimeString // Retourne la chaîne originale si le parsing échoue
         }
@@ -1251,14 +2043,58 @@ private fun formatDateTime(dateTimeString: String): String {
 // Fonction utilitaire pour formater l'heure de mise à jour
 private fun formatUpdateTime(timestamp: Long): String {
     return try {
-        val updateTime = LocalDateTime.ofInstant(
-            java.time.Instant.ofEpochMilli(timestamp), 
-            java.time.ZoneId.systemDefault()
-        )
-        val formatter = DateTimeFormatter.ofPattern("HH:mm:ss")
-        updateTime.format(formatter)
+        val date = Date(timestamp)
+        val formatter = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
+        formatter.format(date)
     } catch (e: Exception) {
         "N/A"
+    }
+}
+
+// Composable pour afficher les notifications de package
+@Composable
+fun PackageNotification(
+    message: String,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier
+            .padding(16.dp)
+            .fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .padding(16.dp)
+                .fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Icône de notification
+            Text(
+                text = "📱",
+                style = MaterialTheme.typography.headlineSmall,
+                modifier = Modifier.padding(end = 12.dp)
+            )
+            
+            // Message de notification
+            Text(
+                text = message,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                modifier = Modifier.weight(1f)
+            )
+            
+            // Indicateur de fermeture automatique
+            Text(
+                text = "⏱️",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+            )
+        }
     }
 }
 
@@ -1326,5 +2162,29 @@ fun WaitingRoomNoAnimationPreview() {
             scheduledAnimation = null,
             onBackToSeatSelection = {}
         )
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun PackageNotificationPreview() {
+    MenuEventTheme {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp)
+        ) {
+            PackageNotification(
+                message = "📦 Package d'animation reçu! 80 frames"
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            PackageNotification(
+                message = "🔄 Nouveau package d'animation! 60 frames"
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            PackageNotification(
+                message = "📦 Package d'animation supprimé"
+            )
+        }
     }
 }
