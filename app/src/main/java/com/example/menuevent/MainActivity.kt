@@ -1954,7 +1954,8 @@ fun ColorAnimationView(
     animationId: String,
     row: Int,
     col: Int,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onFullScreenChange: (Boolean) -> Unit = {}
 ) {
     var currentColor by remember { mutableStateOf(Color.Black) }
     var animationStatus by remember { mutableStateOf("Chargement des frames...") }
@@ -1999,6 +2000,7 @@ fun ColorAnimationView(
                 animationStatus = "Animation en cours..."
                 isAnimationActive = true
                 isFullScreen = true
+                onFullScreenChange(true)
                 Log.d("ColorAnimationView", "🎨 Scheduled animation started: $id")
             },
             onAnimationFrame = { frameIndex, colorFrame ->
@@ -2014,12 +2016,14 @@ fun ColorAnimationView(
                 animationStatus = "Animation terminée"
                 isAnimationActive = false
                 isFullScreen = false
+                onFullScreenChange(false)
                 Log.d("ColorAnimationView", "🎨 Scheduled animation ended: $id")
             },
             onAnimationError = { error ->
                 animationStatus = "Erreur: $error"
                 isAnimationActive = false
                 isFullScreen = false
+                onFullScreenChange(false)
                 Log.e("ColorAnimationView", "🎨 Scheduled animation error: $error")
             }
         )
@@ -2128,6 +2132,15 @@ fun WaitingRoomScreen(
     scheduledAnimation: ScheduledAnimation?,
     onBackToSeatSelection: () -> Unit
 ) {
+    // Track if animation is in full screen mode
+    var isAnimationFullScreen by remember { mutableStateOf(false) }
+    
+    // Animation state that needs to be tracked at waiting room level
+    var animationFrames by remember { mutableStateOf<List<ColorFrame>?>(null) }
+    var animationStatus by remember { mutableStateOf("Chargement des frames...") }
+    var currentColor by remember { mutableStateOf(Color.Black) }
+    var framesListener by remember { mutableStateOf<com.google.firebase.firestore.ListenerRegistration?>(null) }
+    var scheduledListener by remember { mutableStateOf<com.google.firebase.firestore.ListenerRegistration?>(null) }
     // État pour l'animation en temps réel
     var currentAnimation by remember { mutableStateOf(scheduledAnimation) }
     var isListening by remember { mutableStateOf(false) }
@@ -2280,19 +2293,94 @@ fun WaitingRoomScreen(
         }
     }
     
-    // Charger le package d'animation utilisateur au démarrage
+    // Set up animation listeners for blue_black_flash
     LaunchedEffect(userSeat) {
+        Log.d("WaitingRoomScreen", "📦 Setting up animation listeners for user_${userSeat.row}_${userSeat.seat}")
+        
+        // Load frames only (not play)
+        framesListener = MainActivity.loadAnimationFrames(
+            animationId = "blue_black_flash",
+            row = userSeat.row,
+            col = userSeat.seat,
+            onFramesLoaded = { id, frames ->
+                animationFrames = frames
+                animationStatus = "Package reçu: ${frames.size} frames"
+                Log.d("WaitingRoomScreen", "📦 Animation frames loaded: $id with ${frames.size} frames")
+            },
+            onFramesError = { error ->
+                animationStatus = "Erreur: $error"
+                Log.e("WaitingRoomScreen", "📦 Animation frames error: $error")
+            }
+        )
+        
+        // Only listen for scheduled animations if there's actually a scheduled animation
+        // Don't automatically start animation on entering waiting room
+        Log.d("WaitingRoomScreen", "🎨 Setting up scheduled animation listener (will only trigger when scheduled)")
+        
+        // Listen for animation config changes to detect scheduled animations
+        scheduledListener = MainActivity.loadAndPlayAnimation(
+            animationId = "blue_black_flash",
+            row = userSeat.row,
+            col = userSeat.seat,
+            onAnimationLoaded = { id, frameCount ->
+                Log.d("WaitingRoomScreen", "🎨 Scheduled animation loaded: $id with $frameCount frames")
+            },
+            onAnimationStart = { id ->
+                animationStatus = "Animation en cours..."
+                isAnimationFullScreen = true
+                Log.d("WaitingRoomScreen", "🎨 Scheduled animation started: $id")
+            },
+            onAnimationFrame = { frameIndex, colorFrame ->
+                currentColor = androidx.compose.ui.graphics.Color(
+                    red = colorFrame.r / 255f,
+                    green = colorFrame.g / 255f,
+                    blue = colorFrame.b / 255f,
+                    alpha = 1f
+                )
+                Log.d("WaitingRoomScreen", "🎨 Frame $frameIndex: RGB(${colorFrame.r}, ${colorFrame.g}, ${colorFrame.b})")
+            },
+            onAnimationEnd = { id ->
+                animationStatus = "Animation terminée"
+                isAnimationFullScreen = false
+                Log.d("WaitingRoomScreen", "🎨 Scheduled animation ended: $id")
+            },
+            onAnimationError = { error ->
+                animationStatus = "Erreur: $error"
+                isAnimationFullScreen = false
+                Log.e("WaitingRoomScreen", "🎨 Scheduled animation error: $error")
+            }
+        )
+        
+        // Load user animation package
         loadUserAnimationPackage()
     }
     
+    // Cleanup listeners on dispose
+    DisposableEffect(userSeat) {
+        onDispose {
+            Log.d("WaitingRoomScreen", "🎨 Cleaning up animation listeners")
+            framesListener?.remove()
+            scheduledListener?.remove()
+        }
+    }
+    
     Box(modifier = Modifier.fillMaxSize()) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(24.dp)
-        ) {
+        if (isAnimationFullScreen) {
+            // Full screen animation mode - only show the animation color
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(currentColor)
+            )
+        } else {
+            // Normal waiting room mode
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(24.dp)
+            ) {
         // Titre de la salle d'attente
         Text(
             text = "🎭 Salle d'Attente",
@@ -2334,7 +2422,7 @@ fun WaitingRoomScreen(
             }
         }
         
-        // Color Animation View for blue_black_flash
+        // Animation Status Display
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(
@@ -2352,13 +2440,33 @@ fun WaitingRoomScreen(
                 )
                 Spacer(modifier = Modifier.height(12.dp))
                 
-                // Cas A: Affichage direct de l'animation blue_black_flash
-                ColorAnimationView(
-                    animationId = "blue_black_flash",
-                    row = userSeat.row,
-                    col = userSeat.seat,
-                    modifier = Modifier.fillMaxWidth()
+                // Animation will appear in full screen when triggered
+                Text(
+                    text = animationStatus,
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.Center,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer
                 )
+                
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                Text(
+                    text = "L'animation s'affichera en plein écran",
+                    style = MaterialTheme.typography.bodySmall,
+                    textAlign = TextAlign.Center,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f)
+                )
+                
+                // Debug: Show animation frames info
+                if (animationFrames != null) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "📦 Frames chargées: ${animationFrames?.size ?: 0}",
+                        style = MaterialTheme.typography.bodySmall,
+                        textAlign = TextAlign.Center,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
             }
         }
         
@@ -2508,6 +2616,7 @@ fun WaitingRoomScreen(
         ) {
             Text("← Retour à la sélection")
         }
+            }
         }
         
         // Notification overlay pour les packages d'animation avec animation
