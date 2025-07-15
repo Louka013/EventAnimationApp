@@ -57,16 +57,20 @@
                 const testConfig = {
                     animationStartTime: startTime,
                     eventType: 'football_stadium',
-                    animationType: 'wave',
+                    animationType: 'blue_black_flash',
                     animationData: {
-                        animationId: 'test_wave_animation',
-                        frameRate: 15,
-                        frameCount: 80,
+                        animationId: 'blue_black_flash',
+                        frameRate: 2,
+                        frameCount: 20,
+                        type: 'color_animation',
                         users: {
                             'user_1_1': {
-                                frames: [
-                                    'https://firebasestorage.googleapis.com/v0/b/data-base-test-6ef5f.appspot.com/o/animations/wave_animation/1_1/frame_000.png',
-                                    'https://firebasestorage.googleapis.com/v0/b/data-base-test-6ef5f.appspot.com/o/animations/wave_animation/1_1/frame_001.png'
+                                colors: [
+                                    {r: 0, g: 0, b: 255}, {r: 0, g: 0, b: 0}, {r: 0, g: 0, b: 255}, {r: 0, g: 0, b: 0},
+                                    {r: 0, g: 0, b: 255}, {r: 0, g: 0, b: 0}, {r: 0, g: 0, b: 255}, {r: 0, g: 0, b: 0},
+                                    {r: 0, g: 0, b: 255}, {r: 0, g: 0, b: 0}, {r: 0, g: 0, b: 255}, {r: 0, g: 0, b: 0},
+                                    {r: 0, g: 0, b: 255}, {r: 0, g: 0, b: 0}, {r: 0, g: 0, b: 255}, {r: 0, g: 0, b: 0},
+                                    {r: 0, g: 0, b: 255}, {r: 0, g: 0, b: 0}, {r: 0, g: 0, b: 255}, {r: 0, g: 0, b: 0}
                                 ]
                             }
                         }

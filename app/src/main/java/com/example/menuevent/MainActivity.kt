@@ -122,6 +122,19 @@ data class SynchronizedAnimation(
     val pattern: String
 )
 
+// New data models for color animations
+data class ColorFrame(
+    val r: Int,
+    val g: Int,
+    val b: Int
+)
+
+data class ColorAnimationUser(
+    val colors: List<ColorFrame>,
+    val startTime: String,
+    val frameCount: Int
+)
+
 data class AnimationUser(
     val userId: String,
     val animationId: String,
@@ -1087,6 +1100,320 @@ class MainActivity : ComponentActivity() {
         }
         
         /**
+         * Function to load animation frames without playing them
+         */
+        fun loadAnimationFrames(
+            animationId: String,
+            row: Int,
+            col: Int,
+            onFramesLoaded: (String, List<ColorFrame>) -> Unit,
+            onFramesError: (String) -> Unit
+        ): com.google.firebase.firestore.ListenerRegistration? {
+            val db = FirebaseFirestore.getInstance()
+            val userId = "user_${row}_${col}"
+            
+            Log.d("Animation", "📦 Loading animation frames: $animationId for user: $userId")
+            
+            // Listen for animation document changes
+            return db.collection("animations")
+                .document(animationId)
+                .addSnapshotListener { documentSnapshot, error ->
+                    if (error != null) {
+                        Log.e("Animation", "Error listening to animation: ${error.message}")
+                        onFramesError("Erreur de connexion: ${error.message}")
+                        return@addSnapshotListener
+                    }
+                    
+                    if (documentSnapshot != null && documentSnapshot.exists()) {
+                        val animationData = documentSnapshot.data
+                        if (animationData != null) {
+                            val animationType = animationData["type"] as? String ?: ""
+                            
+                            if (animationType == "color_animation") {
+                                // Load user color data without playing
+                                loadUserColorFrames(animationId, userId, onFramesLoaded, onFramesError)
+                            } else {
+                                onFramesError("Type d'animation non supporté: $animationType")
+                            }
+                        }
+                    } else {
+                        Log.d("Animation", "Animation document not found: $animationId")
+                        onFramesError("Animation non trouvée: $animationId")
+                    }
+                }
+        }
+        
+        /**
+         * Function to load and play color animations (scheduled)
+         */
+        fun loadAndPlayAnimation(
+            animationId: String,
+            row: Int,
+            col: Int,
+            onAnimationLoaded: (String, Int) -> Unit,
+            onAnimationStart: (String) -> Unit,
+            onAnimationFrame: (Int, ColorFrame) -> Unit,
+            onAnimationEnd: (String) -> Unit,
+            onAnimationError: (String) -> Unit
+        ): com.google.firebase.firestore.ListenerRegistration? {
+            val db = FirebaseFirestore.getInstance()
+            val userId = "user_${row}_${col}"
+            
+            Log.d("Animation", "🎨 Loading color animation: $animationId for user: $userId")
+            
+            // Listen for animation document changes
+            return db.collection("animations")
+                .document(animationId)
+                .addSnapshotListener { documentSnapshot, error ->
+                    if (error != null) {
+                        Log.e("Animation", "Error listening to animation: ${error.message}")
+                        onAnimationError("Erreur de connexion: ${error.message}")
+                        return@addSnapshotListener
+                    }
+                    
+                    if (documentSnapshot != null && documentSnapshot.exists()) {
+                        val animationData = documentSnapshot.data
+                        if (animationData != null) {
+                            val frameRate = (animationData["frameRate"] as? Number)?.toInt() ?: 2
+                            val frameCount = (animationData["frameCount"] as? Number)?.toInt() ?: 20
+                            val startTime = animationData["startTime"] as? String ?: ""
+                            val animationType = animationData["type"] as? String ?: ""
+                            
+                            Log.d("Animation", "🎨 Animation data loaded: frameRate=$frameRate, frameCount=$frameCount, type=$animationType")
+                            
+                            if (animationType == "color_animation") {
+                                // Load user color data
+                                loadUserColorData(
+                                    animationId, userId, frameRate, frameCount, startTime,
+                                    onAnimationLoaded, onAnimationStart, onAnimationFrame, onAnimationEnd, onAnimationError
+                                )
+                            } else {
+                                onAnimationError("Type d'animation non supporté: $animationType")
+                            }
+                        }
+                    } else {
+                        Log.d("Animation", "Animation document not found: $animationId")
+                        onAnimationError("Animation non trouvée: $animationId")
+                    }
+                }
+        }
+        
+        /**
+         * Load user-specific color frames without playing animation
+         */
+        private fun loadUserColorFrames(
+            animationId: String,
+            userId: String,
+            onFramesLoaded: (String, List<ColorFrame>) -> Unit,
+            onFramesError: (String) -> Unit
+        ) {
+            val db = FirebaseFirestore.getInstance()
+            
+            Log.d("Animation", "📦 Loading user color frames for: $userId")
+            
+            db.collection("animations")
+                .document(animationId)
+                .collection("users")
+                .document(userId)
+                .get()
+                .addOnSuccessListener { userDocument ->
+                    if (userDocument.exists()) {
+                        val userData = userDocument.data
+                        if (userData != null) {
+                            val colorsData = userData["colors"] as? List<Map<String, Any>>
+                            if (colorsData != null) {
+                                val colors = colorsData.map { colorMap ->
+                                    ColorFrame(
+                                        r = (colorMap["r"] as? Number)?.toInt() ?: 0,
+                                        g = (colorMap["g"] as? Number)?.toInt() ?: 0,
+                                        b = (colorMap["b"] as? Number)?.toInt() ?: 0
+                                    )
+                                }
+                                
+                                Log.d("Animation", "📦 User color frames loaded: ${colors.size} colors")
+                                onFramesLoaded(animationId, colors)
+                            } else {
+                                onFramesError("Données de couleur manquantes pour l'utilisateur $userId")
+                            }
+                        }
+                    } else {
+                        onFramesError("Utilisateur non trouvé: $userId")
+                    }
+                }
+                .addOnFailureListener { exception ->
+                    Log.e("Animation", "Error loading user frames: ${exception.message}")
+                    onFramesError("Erreur de chargement: ${exception.message}")
+                }
+        }
+        
+        /**
+         * Load user-specific color data and schedule animation
+         */
+        private fun loadUserColorData(
+            animationId: String,
+            userId: String,
+            frameRate: Int,
+            frameCount: Int,
+            startTime: String,
+            onAnimationLoaded: (String, Int) -> Unit,
+            onAnimationStart: (String) -> Unit,
+            onAnimationFrame: (Int, ColorFrame) -> Unit,
+            onAnimationEnd: (String) -> Unit,
+            onAnimationError: (String) -> Unit
+        ) {
+            val db = FirebaseFirestore.getInstance()
+            
+            Log.d("Animation", "🎨 Loading user color data for: $userId")
+            
+            db.collection("animations")
+                .document(animationId)
+                .collection("users")
+                .document(userId)
+                .get()
+                .addOnSuccessListener { userDocument ->
+                    if (userDocument.exists()) {
+                        val userData = userDocument.data
+                        if (userData != null) {
+                            val colorsData = userData["colors"] as? List<Map<String, Any>>
+                            if (colorsData != null) {
+                                val colors = colorsData.map { colorMap ->
+                                    ColorFrame(
+                                        r = (colorMap["r"] as? Number)?.toInt() ?: 0,
+                                        g = (colorMap["g"] as? Number)?.toInt() ?: 0,
+                                        b = (colorMap["b"] as? Number)?.toInt() ?: 0
+                                    )
+                                }
+                                
+                                Log.d("Animation", "🎨 User colors loaded: ${colors.size} colors")
+                                onAnimationLoaded(animationId, colors.size)
+                                
+                                // Schedule animation
+                                scheduleColorAnimation(animationId, colors, frameRate, startTime, onAnimationStart, onAnimationFrame, onAnimationEnd, onAnimationError)
+                            } else {
+                                onAnimationError("Données de couleur manquantes pour l'utilisateur $userId")
+                            }
+                        }
+                    } else {
+                        onAnimationError("Utilisateur non trouvé: $userId")
+                    }
+                }
+                .addOnFailureListener { exception ->
+                    Log.e("Animation", "Error loading user data: ${exception.message}")
+                    onAnimationError("Erreur de chargement: ${exception.message}")
+                }
+        }
+        
+        /**
+         * Schedule color animation according to startTime
+         */
+        private fun scheduleColorAnimation(
+            animationId: String,
+            colors: List<ColorFrame>,
+            frameRate: Int,
+            startTime: String,
+            onAnimationStart: (String) -> Unit,
+            onAnimationFrame: (Int, ColorFrame) -> Unit,
+            onAnimationEnd: (String) -> Unit,
+            onAnimationError: (String) -> Unit
+        ) {
+            try {
+                // Parse startTime - handle multiple formats
+                val startDate = try {
+                    when {
+                        startTime.endsWith("Z") -> {
+                            // Try full format with Z first
+                            try {
+                                SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.getDefault()).parse(startTime)
+                            } catch (e: Exception) {
+                                // Try without seconds
+                                SimpleDateFormat("yyyy-MM-dd'T'HH:mm'Z'", Locale.getDefault()).parse(startTime)
+                            }
+                        }
+                        startTime.contains("T") -> {
+                            // Try format without Z
+                            try {
+                                SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault()).parse(startTime)
+                            } catch (e: Exception) {
+                                // Try without seconds (datetime-local format)
+                                SimpleDateFormat("yyyy-MM-dd'T'HH:mm", Locale.getDefault()).parse(startTime)
+                            }
+                        }
+                        else -> {
+                            Log.e("Animation", "Unknown date format: $startTime")
+                            null
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.e("Animation", "Failed to parse start time: $startTime", e)
+                    null
+                }
+                
+                val currentDate = Date()
+                
+                if (startDate == null) {
+                    Log.e("Animation", "Invalid start time format: $startTime")
+                    onAnimationError("Format d'heure invalide: $startTime")
+                    return
+                }
+                
+                val delayMs = startDate.time - currentDate.time
+                
+                if (delayMs > 0) {
+                    Log.d("Animation", "🎨 Scheduling color animation to start in ${delayMs}ms")
+                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                        playColorAnimation(animationId, colors, frameRate, onAnimationStart, onAnimationFrame, onAnimationEnd)
+                    }, delayMs)
+                } else {
+                    Log.d("Animation", "🎨 Start time has passed, playing color animation immediately")
+                    playColorAnimation(animationId, colors, frameRate, onAnimationStart, onAnimationFrame, onAnimationEnd)
+                }
+                
+            } catch (e: Exception) {
+                Log.e("Animation", "Error scheduling color animation: ${e.message}")
+                onAnimationError("Erreur de planification: ${e.message}")
+            }
+        }
+        
+        /**
+         * Play color animation
+         */
+        private fun playColorAnimation(
+            animationId: String,
+            colors: List<ColorFrame>,
+            frameRate: Int,
+            onAnimationStart: (String) -> Unit,
+            onAnimationFrame: (Int, ColorFrame) -> Unit,
+            onAnimationEnd: (String) -> Unit
+        ) {
+            onAnimationStart(animationId)
+            
+            val frameDurationMs = (1000.0 / frameRate).toLong()
+            var currentFrame = 0
+            val handler = android.os.Handler(android.os.Looper.getMainLooper())
+            
+            Log.d("Animation", "🎨 Starting color animation: $animationId with ${colors.size} colors at ${frameRate}fps")
+            
+            val playNextFrame = object : Runnable {
+                override fun run() {
+                    if (currentFrame < colors.size) {
+                        val color = colors[currentFrame]
+                        Log.d("Animation", "🎨 Playing color frame $currentFrame: RGB(${color.r}, ${color.g}, ${color.b})")
+                        
+                        onAnimationFrame(currentFrame, color)
+                        currentFrame++
+                        
+                        handler.postDelayed(this, frameDurationMs)
+                    } else {
+                        Log.d("Animation", "🎨 Color animation finished: $animationId")
+                        onAnimationEnd(animationId)
+                    }
+                }
+            }
+            
+            playNextFrame.run()
+        }
+
+        /**
          * Listen for real-time animation updates
          */
         fun listenForAnimationUpdates(
@@ -1623,6 +1950,179 @@ fun LoadingScreen() {
 }
 
 @Composable
+fun ColorAnimationView(
+    animationId: String,
+    row: Int,
+    col: Int,
+    modifier: Modifier = Modifier
+) {
+    var currentColor by remember { mutableStateOf(Color.Black) }
+    var animationStatus by remember { mutableStateOf("Chargement des frames...") }
+    var isAnimationActive by remember { mutableStateOf(false) }
+    var isFullScreen by remember { mutableStateOf(false) }
+    var animationFrames by remember { mutableStateOf<List<ColorFrame>?>(null) }
+    var framesListener by remember { mutableStateOf<com.google.firebase.firestore.ListenerRegistration?>(null) }
+    var scheduledListener by remember { mutableStateOf<com.google.firebase.firestore.ListenerRegistration?>(null) }
+    
+    // Load animation frames (without playing)
+    LaunchedEffect(animationId, row, col) {
+        Log.d("ColorAnimationView", "📦 Loading animation frames: $animationId for user_${row}_${col}")
+        
+        // Clean up previous listener
+        framesListener?.remove()
+        
+        // Load frames only (not play)
+        framesListener = MainActivity.loadAnimationFrames(
+            animationId = animationId,
+            row = row,
+            col = col,
+            onFramesLoaded = { id, frames ->
+                animationFrames = frames
+                animationStatus = "Package reçu: ${frames.size} frames"
+                Log.d("ColorAnimationView", "📦 Animation frames loaded: $id with ${frames.size} frames")
+            },
+            onFramesError = { error ->
+                animationStatus = "Erreur: $error"
+                Log.e("ColorAnimationView", "📦 Animation frames error: $error")
+            }
+        )
+        
+        // Listen for scheduled animations
+        scheduledListener = MainActivity.loadAndPlayAnimation(
+            animationId = animationId,
+            row = row,
+            col = col,
+            onAnimationLoaded = { id, frameCount ->
+                Log.d("ColorAnimationView", "🎨 Scheduled animation loaded: $id with $frameCount frames")
+            },
+            onAnimationStart = { id ->
+                animationStatus = "Animation en cours..."
+                isAnimationActive = true
+                isFullScreen = true
+                Log.d("ColorAnimationView", "🎨 Scheduled animation started: $id")
+            },
+            onAnimationFrame = { frameIndex, colorFrame ->
+                currentColor = androidx.compose.ui.graphics.Color(
+                    red = colorFrame.r / 255f,
+                    green = colorFrame.g / 255f,
+                    blue = colorFrame.b / 255f,
+                    alpha = 1f
+                )
+                Log.d("ColorAnimationView", "🎨 Frame $frameIndex: RGB(${colorFrame.r}, ${colorFrame.g}, ${colorFrame.b})")
+            },
+            onAnimationEnd = { id ->
+                animationStatus = "Animation terminée"
+                isAnimationActive = false
+                isFullScreen = false
+                Log.d("ColorAnimationView", "🎨 Scheduled animation ended: $id")
+            },
+            onAnimationError = { error ->
+                animationStatus = "Erreur: $error"
+                isAnimationActive = false
+                isFullScreen = false
+                Log.e("ColorAnimationView", "🎨 Scheduled animation error: $error")
+            }
+        )
+    }
+    
+    // Cleanup on dispose
+    DisposableEffect(animationId, row, col) {
+        onDispose {
+            Log.d("ColorAnimationView", "🎨 Cleaning up animation listeners")
+            framesListener?.remove()
+            scheduledListener?.remove()
+        }
+    }
+    
+    // UI for color animation
+    if (isFullScreen) {
+        // Full screen animation mode
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(currentColor),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "🎨",
+                color = if (isLightColor(currentColor)) Color.Black else Color.White,
+                style = MaterialTheme.typography.displayLarge,
+                fontWeight = FontWeight.Bold
+            )
+        }
+    } else {
+        // Normal waiting room mode
+        Column(
+            modifier = modifier,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            // Color display area
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(300.dp)
+                    .background(
+                        color = currentColor,
+                        shape = RoundedCornerShape(16.dp)
+                    )
+                    .padding(16.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                if (isAnimationActive) {
+                    Text(
+                        text = "🎨 Animation en cours",
+                        color = if (isLightColor(currentColor)) Color.Black else Color.White,
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                } else if (animationFrames != null) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "📦 Package reçu",
+                            color = if (isLightColor(currentColor)) Color.Black else Color.White,
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "${animationFrames!!.size} frames",
+                            color = if (isLightColor(currentColor)) Color.Black else Color.White,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                } else {
+                    Text(
+                        text = "En attente...",
+                        color = if (isLightColor(currentColor)) Color.Black else Color.White,
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            // Animation status
+            Text(
+                text = animationStatus,
+                style = MaterialTheme.typography.bodyMedium,
+                textAlign = TextAlign.Center
+            )
+            
+            // Progress indicator
+            if (isAnimationActive) {
+                LinearProgressIndicator(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp),
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+        }
+    }
+}
+
+@Composable
 fun WaitingRoomScreen(
     userSeat: UserSeat,
     scheduledAnimation: ScheduledAnimation?,
@@ -1834,6 +2334,34 @@ fun WaitingRoomScreen(
             }
         }
         
+        // Color Animation View for blue_black_flash
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.secondaryContainer
+            )
+        ) {
+            Column(
+                modifier = Modifier.padding(20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = "🎨 Animation Couleur",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                
+                // Cas A: Affichage direct de l'animation blue_black_flash
+                ColorAnimationView(
+                    animationId = "blue_black_flash",
+                    row = userSeat.row,
+                    col = userSeat.seat,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        }
+        
         // Statut de l'animation (utilise currentAnimation au lieu de scheduledAnimation)
         Card(
             modifier = Modifier.fillMaxWidth(),
@@ -2009,6 +2537,7 @@ private fun getAnimationDisplayName(animationType: String): String {
         "rainbow" -> "🌈 Arc-en-ciel"
         "pulse" -> "💓 Pulsation"
         "fireworks" -> "🎆 Feux d'artifice"
+        "blue_black_flash" -> "⚡ Flash Bleu/Noir"
         else -> animationType
     }
 }
@@ -2187,4 +2716,10 @@ fun PackageNotificationPreview() {
             )
         }
     }
+}
+
+// Helper function to determine if a color is light
+fun isLightColor(color: androidx.compose.ui.graphics.Color): Boolean {
+    val luminance = 0.299 * color.red + 0.587 * color.green + 0.114 * color.blue
+    return luminance > 0.5f
 }

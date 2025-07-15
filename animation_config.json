@@ -5,33 +5,12 @@
     "service_account_key": null
   },
   "animations": {
-    "wave": {
-      "frame_rate": 15,
-      "frame_count": 80,
-      "duration_seconds": 5.33,
-      "pattern": "wave_horizontal",
-      "description": "Horizontal wave effect across the stadium"
-    },
-    "rainbow": {
-      "frame_rate": 12,
-      "frame_count": 60,
-      "duration_seconds": 5.0,
-      "pattern": "rainbow_cascade",
-      "description": "Rainbow colors cascading through sections"
-    },
-    "pulse": {
-      "frame_rate": 8,
-      "frame_count": 40,
-      "duration_seconds": 5.0,
-      "pattern": "pulse_radial",
-      "description": "Radial pulse effect from center"
-    },
-    "fireworks": {
-      "frame_rate": 18,
-      "frame_count": 120,
-      "duration_seconds": 6.67,
-      "pattern": "fireworks_burst",
-      "description": "Fireworks bursting across the stadium"
+    "blue_black_flash": {
+      "frame_rate": 2,
+      "frame_count": 20,
+      "duration_seconds": 10.0,
+      "pattern": "color_flash",
+      "description": "Blue and black alternating flash effect"
     }
   },
   "grid": {

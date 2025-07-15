@@ -164,14 +164,7 @@
                 <label for="animationType">✨ Type d'animation</label>
                 <select id="animationType" name="animationType" required>
                     <option value="">Sélectionnez un type d'animation</option>
-                    <option value="wave">🌊 Effet de Vague</option>
-                    <option value="flash">⚡ Flash Lumineux</option>
-                    <option value="rainbow">🌈 Arc-en-ciel</option>
-                    <option value="pulse">💓 Pulsation</option>
-                    <option value="sparkle">✨ Étincelles</option>
-                    <option value="cascade">🌊 Cascade</option>
-                    <option value="spiral">🌀 Spirale</option>
-                    <option value="fireworks">🎆 Feux d'artifice</option>
+                    <option value="blue_black_flash">⚡ Flash Bleu/Noir</option>
                 </select>
             </div>
 
@@ -212,133 +205,22 @@
         const db = getFirestore(app);
         const storage = getStorage(app);
 
-        // Animation data
+        // Animation data - Only blue_black_flash for testing
         const animationData = {
-            wave: {
-                animationId: "wave_animation",
-                frameRate: 15,
-                frameCount: 80,
+            blue_black_flash: {
+                animationId: "blue_black_flash",
+                frameRate: 2,
+                frameCount: 20,
+                type: "color_animation",
                 users: {
                     "user_1_1": {
-                        frames: Array.from({length: 80}, (_, i) => 
-                            `https://firebasestorage.googleapis.com/v0/b/data-base-test-6ef5f.appspot.com/o/animations/wave_animation/1_1/frame_${i.toString().padStart(3, '0')}.png`
-                        )
-                    },
-                    "user_2_1": {
-                        frames: Array.from({length: 80}, (_, i) => 
-                            `https://firebasestorage.googleapis.com/v0/b/data-base-test-6ef5f.appspot.com/o/animations/wave_animation/2_1/frame_${i.toString().padStart(3, '0')}.png`
-                        )
-                    },
-                    "user_3_1": {
-                        frames: Array.from({length: 80}, (_, i) => 
-                            `https://firebasestorage.googleapis.com/v0/b/data-base-test-6ef5f.appspot.com/o/animations/wave_animation/3_1/frame_${i.toString().padStart(3, '0')}.png`
-                        )
-                    },
-                    "user_4_1": {
-                        frames: Array.from({length: 80}, (_, i) => 
-                            `https://firebasestorage.googleapis.com/v0/b/data-base-test-6ef5f.appspot.com/o/animations/wave_animation/4_1/frame_${i.toString().padStart(3, '0')}.png`
-                        )
-                    },
-                    "user_5_1": {
-                        frames: Array.from({length: 80}, (_, i) => 
-                            `https://firebasestorage.googleapis.com/v0/b/data-base-test-6ef5f.appspot.com/o/animations/wave_animation/5_1/frame_${i.toString().padStart(3, '0')}.png`
-                        )
-                    }
-                }
-            },
-            rainbow: {
-                animationId: "rainbow_animation",
-                frameRate: 12,
-                frameCount: 60,
-                users: {
-                    "user_1_1": {
-                        frames: Array.from({length: 60}, (_, i) => 
-                            `https://firebasestorage.googleapis.com/v0/b/data-base-test-6ef5f.appspot.com/o/animations/rainbow_animation/1_1/frame_${i.toString().padStart(3, '0')}.png`
-                        )
-                    },
-                    "user_2_1": {
-                        frames: Array.from({length: 60}, (_, i) => 
-                            `https://firebasestorage.googleapis.com/v0/b/data-base-test-6ef5f.appspot.com/o/animations/rainbow_animation/2_1/frame_${i.toString().padStart(3, '0')}.png`
-                        )
-                    },
-                    "user_3_1": {
-                        frames: Array.from({length: 60}, (_, i) => 
-                            `https://firebasestorage.googleapis.com/v0/b/data-base-test-6ef5f.appspot.com/o/animations/rainbow_animation/3_1/frame_${i.toString().padStart(3, '0')}.png`
-                        )
-                    },
-                    "user_4_1": {
-                        frames: Array.from({length: 60}, (_, i) => 
-                            `https://firebasestorage.googleapis.com/v0/b/data-base-test-6ef5f.appspot.com/o/animations/rainbow_animation/4_1/frame_${i.toString().padStart(3, '0')}.png`
-                        )
-                    },
-                    "user_5_1": {
-                        frames: Array.from({length: 60}, (_, i) => 
-                            `https://firebasestorage.googleapis.com/v0/b/data-base-test-6ef5f.appspot.com/o/animations/rainbow_animation/5_1/frame_${i.toString().padStart(3, '0')}.png`
-                        )
-                    },
-                    "user_6_1": {
-                        frames: Array.from({length: 60}, (_, i) => 
-                            `https://firebasestorage.googleapis.com/v0/b/data-base-test-6ef5f.appspot.com/o/animations/rainbow_animation/6_1/frame_${i.toString().padStart(3, '0')}.png`
-                        )
-                    },
-                    "user_7_1": {
-                        frames: Array.from({length: 60}, (_, i) => 
-                            `https://firebasestorage.googleapis.com/v0/b/data-base-test-6ef5f.appspot.com/o/animations/rainbow_animation/7_1/frame_${i.toString().padStart(3, '0')}.png`
-                        )
-                    }
-                }
-            },
-            pulse: {
-                animationId: "pulsation_animation",
-                frameRate: 8,
-                frameCount: 40,
-                users: {
-                    "user_1_1": {
-                        frames: Array.from({length: 40}, (_, i) => 
-                            `https://firebasestorage.googleapis.com/v0/b/data-base-test-6ef5f.appspot.com/o/animations/pulsation_animation/1_1/frame_${i.toString().padStart(3, '0')}.png`
-                        )
-                    },
-                    "user_2_1": {
-                        frames: Array.from({length: 40}, (_, i) => 
-                            `https://firebasestorage.googleapis.com/v0/b/data-base-test-6ef5f.appspot.com/o/animations/pulsation_animation/2_1/frame_${i.toString().padStart(3, '0')}.png`
-                        )
-                    },
-                    "user_3_1": {
-                        frames: Array.from({length: 40}, (_, i) => 
-                            `https://firebasestorage.googleapis.com/v0/b/data-base-test-6ef5f.appspot.com/o/animations/pulsation_animation/3_1/frame_${i.toString().padStart(3, '0')}.png`
-                        )
-                    },
-                    "user_4_1": {
-                        frames: Array.from({length: 40}, (_, i) => 
-                            `https://firebasestorage.googleapis.com/v0/b/data-base-test-6ef5f.appspot.com/o/animations/pulsation_animation/4_1/frame_${i.toString().padStart(3, '0')}.png`
-                        )
-                    },
-                    "user_5_1": {
-                        frames: Array.from({length: 40}, (_, i) => 
-                            `https://firebasestorage.googleapis.com/v0/b/data-base-test-6ef5f.appspot.com/o/animations/pulsation_animation/5_1/frame_${i.toString().padStart(3, '0')}.png`
-                        )
-                    }
-                }
-            },
-            fireworks: {
-                animationId: "fireworks_animation",
-                frameRate: 18,
-                frameCount: 120,
-                users: {
-                    "user_1_1": {
-                        frames: Array.from({length: 120}, (_, i) => 
-                            `https://firebasestorage.googleapis.com/v0/b/data-base-test-6ef5f.appspot.com/o/animations/fireworks_animation/1_1/frame_${i.toString().padStart(3, '0')}.png`
-                        )
-                    },
-                    "user_2_1": {
-                        frames: Array.from({length: 120}, (_, i) => 
-                            `https://firebasestorage.googleapis.com/v0/b/data-base-test-6ef5f.appspot.com/o/animations/fireworks_animation/2_1/frame_${i.toString().padStart(3, '0')}.png`
-                        )
-                    },
-                    "user_3_1": {
-                        frames: Array.from({length: 120}, (_, i) => 
-                            `https://firebasestorage.googleapis.com/v0/b/data-base-test-6ef5f.appspot.com/o/animations/fireworks_animation/3_1/frame_${i.toString().padStart(3, '0')}.png`
-                        )
+                        colors: [
+                            {r: 0, g: 0, b: 255}, {r: 0, g: 0, b: 0}, {r: 0, g: 0, b: 255}, {r: 0, g: 0, b: 0},
+                            {r: 0, g: 0, b: 255}, {r: 0, g: 0, b: 0}, {r: 0, g: 0, b: 255}, {r: 0, g: 0, b: 0},
+                            {r: 0, g: 0, b: 255}, {r: 0, g: 0, b: 0}, {r: 0, g: 0, b: 255}, {r: 0, g: 0, b: 0},
+                            {r: 0, g: 0, b: 255}, {r: 0, g: 0, b: 0}, {r: 0, g: 0, b: 255}, {r: 0, g: 0, b: 0},
+                            {r: 0, g: 0, b: 255}, {r: 0, g: 0, b: 0}, {r: 0, g: 0, b: 255}, {r: 0, g: 0, b: 0}
+                        ]
                     }
                 }
             }
@@ -433,7 +315,15 @@
                 const docRef = await addDoc(collection(db, 'animation_configs'), config);
                 
                 // Also save animation data to a separate collection for easy access
-                await setDoc(doc(db, 'animations', selectedAnimation.animationId), selectedAnimation);
+                const animationStartTime = formData.get('animationStartTime');
+                const formattedStartTime = animationStartTime.includes(':') && animationStartTime.split(':').length === 2 
+                    ? animationStartTime + ':00'  // Add seconds if missing
+                    : animationStartTime;
+                
+                await setDoc(doc(db, 'animations', selectedAnimation.animationId), {
+                    ...selectedAnimation,
+                    startTime: formattedStartTime + 'Z'  // Store with Z suffix for UTC
+                });
                 
                 console.log('Configuration sauvegardée avec l\'ID: ', docRef.id);
                 
