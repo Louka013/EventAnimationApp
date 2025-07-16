@@ -1364,8 +1364,9 @@ class MainActivity : ComponentActivity() {
                         playColorAnimation(animationId, colors, frameRate, onAnimationStart, onAnimationFrame, onAnimationEnd)
                     }, delayMs)
                 } else {
-                    Log.d("Animation", "🎨 Start time has passed, playing color animation immediately")
-                    playColorAnimation(animationId, colors, frameRate, onAnimationStart, onAnimationFrame, onAnimationEnd)
+                    Log.d("Animation", "🎨 Start time has passed, waiting for next scheduled start time")
+                    // Don't play immediately - animation should only start at scheduled time
+                    // Frames are loaded but animation waits for proper start time
                 }
                 
             } catch (e: Exception) {
@@ -1524,8 +1525,9 @@ class MainActivity : ComponentActivity() {
                         playAnimationFrames(animationPackage, onAnimationStart, onAnimationFrame, onAnimationEnd)
                     }, delayMs)
                 } else {
-                    Log.d("Animation", "Animation start time has passed, playing immediately")
-                    playAnimationFrames(animationPackage, onAnimationStart, onAnimationFrame, onAnimationEnd)
+                    Log.d("Animation", "Animation start time has passed, waiting for next scheduled start time")
+                    // Don't play immediately - animation should only start at scheduled time
+                    // Frames are loaded but animation waits for proper start time
                 }
                 
             } catch (e: Exception) {
