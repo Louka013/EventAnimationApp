@@ -11,6 +11,13 @@
       "duration_seconds": 10.0,
       "pattern": "color_flash",
       "description": "Blue and black alternating flash effect"
+    },
+    "checkboard_flash": {
+      "frame_rate": 2,
+      "frame_count": 20,
+      "duration_seconds": 10.0,
+      "pattern": "color_flash",
+      "description": "Checkboard pattern with red flash for odd seats, blue flash for even seats, alternating with black"
     }
   },
   "grid": {

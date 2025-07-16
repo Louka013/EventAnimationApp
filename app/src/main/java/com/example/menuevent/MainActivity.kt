@@ -2295,35 +2295,39 @@ fun WaitingRoomScreen(
         }
     }
     
-    // Set up animation listeners for blue_black_flash
+    // Set up animation listeners for any active animation
     LaunchedEffect(userSeat) {
         Log.d("WaitingRoomScreen", "📦 Setting up animation listeners for user_${userSeat.row}_${userSeat.seat}")
         
-        // Load frames only (not play)
-        framesListener = MainActivity.loadAnimationFrames(
-            animationId = "blue_black_flash",
-            row = userSeat.row,
-            col = userSeat.seat,
-            onFramesLoaded = { id, frames ->
-                animationFrames = frames
-                animationStatus = "Package reçu: ${frames.size} frames"
-                Log.d("WaitingRoomScreen", "📦 Animation frames loaded: $id with ${frames.size} frames")
-            },
-            onFramesError = { error ->
-                animationStatus = "Erreur: $error"
-                Log.e("WaitingRoomScreen", "📦 Animation frames error: $error")
-            }
-        )
+        // Try to load frames for different animation types
+        val animationTypes = listOf("blue_black_flash", "checkboard_flash")
         
-        // Only listen for scheduled animations if there's actually a scheduled animation
-        // Don't automatically start animation on entering waiting room
-        Log.d("WaitingRoomScreen", "🎨 Setting up scheduled animation listener (will only trigger when scheduled)")
-        
-        // Listen for animation config changes to detect scheduled animations
-        scheduledListener = MainActivity.loadAndPlayAnimation(
-            animationId = "blue_black_flash",
-            row = userSeat.row,
-            col = userSeat.seat,
+        // Try each animation type until we find one with frames
+        for (animationType in animationTypes) {
+            Log.d("WaitingRoomScreen", "📦 Trying animation type: $animationType")
+            
+            // Load frames only (not play)
+            framesListener = MainActivity.loadAnimationFrames(
+                animationId = animationType,
+                row = userSeat.row,
+                col = userSeat.seat,
+                onFramesLoaded = { id, frames ->
+                    animationFrames = frames
+                    animationStatus = "Package reçu: ${frames.size} frames ($id)"
+                    Log.d("WaitingRoomScreen", "📦 Animation frames loaded: $id with ${frames.size} frames")
+                },
+                onFramesError = { error ->
+                    Log.d("WaitingRoomScreen", "📦 No frames found for $animationType: $error")
+                }
+            )
+            
+            // Set up scheduled animation listener for this type
+            Log.d("WaitingRoomScreen", "🎨 Setting up scheduled animation listener for $animationType")
+            
+            scheduledListener = MainActivity.loadAndPlayAnimation(
+                animationId = animationType,
+                row = userSeat.row,
+                col = userSeat.seat,
             onAnimationLoaded = { id, frameCount ->
                 Log.d("WaitingRoomScreen", "🎨 Scheduled animation loaded: $id with $frameCount frames")
             },
@@ -2352,6 +2356,7 @@ fun WaitingRoomScreen(
                 Log.e("WaitingRoomScreen", "🎨 Scheduled animation error: $error")
             }
         )
+        }
         
         // Load user animation package
         loadUserAnimationPackage()
@@ -2649,6 +2654,7 @@ private fun getAnimationDisplayName(animationType: String): String {
         "pulse" -> "💓 Pulsation"
         "fireworks" -> "🎆 Feux d'artifice"
         "blue_black_flash" -> "⚡ Flash Bleu/Noir"
+        "checkboard_flash" -> "🏁 Flash Damier (Rouge/Bleu)"
         else -> animationType
     }
 }

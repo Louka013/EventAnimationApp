@@ -165,6 +165,7 @@
                 <select id="animationType" name="animationType" required>
                     <option value="">Sélectionnez un type d'animation</option>
                     <option value="blue_black_flash">⚡ Flash Bleu/Noir</option>
+                    <option value="checkboard_flash">🏁 Flash Damier (Rouge/Bleu)</option>
                 </select>
             </div>
 
@@ -205,7 +206,7 @@
         const db = getFirestore(app);
         const storage = getStorage(app);
 
-        // Animation data - Only blue_black_flash for testing
+        // Animation data - Available animations
         const animationData = {
             blue_black_flash: {
                 animationId: "blue_black_flash",
@@ -214,6 +215,32 @@
                 type: "color_animation",
                 users: {
                     "user_1_1": {
+                        colors: [
+                            {r: 0, g: 0, b: 255}, {r: 0, g: 0, b: 0}, {r: 0, g: 0, b: 255}, {r: 0, g: 0, b: 0},
+                            {r: 0, g: 0, b: 255}, {r: 0, g: 0, b: 0}, {r: 0, g: 0, b: 255}, {r: 0, g: 0, b: 0},
+                            {r: 0, g: 0, b: 255}, {r: 0, g: 0, b: 0}, {r: 0, g: 0, b: 255}, {r: 0, g: 0, b: 0},
+                            {r: 0, g: 0, b: 255}, {r: 0, g: 0, b: 0}, {r: 0, g: 0, b: 255}, {r: 0, g: 0, b: 0},
+                            {r: 0, g: 0, b: 255}, {r: 0, g: 0, b: 0}, {r: 0, g: 0, b: 255}, {r: 0, g: 0, b: 0}
+                        ]
+                    }
+                }
+            },
+            checkboard_flash: {
+                animationId: "checkboard_flash",
+                frameRate: 2,
+                frameCount: 20,
+                type: "color_animation",
+                users: {
+                    "user_1_1": {
+                        colors: [
+                            {r: 255, g: 0, b: 0}, {r: 0, g: 0, b: 0}, {r: 255, g: 0, b: 0}, {r: 0, g: 0, b: 0},
+                            {r: 255, g: 0, b: 0}, {r: 0, g: 0, b: 0}, {r: 255, g: 0, b: 0}, {r: 0, g: 0, b: 0},
+                            {r: 255, g: 0, b: 0}, {r: 0, g: 0, b: 0}, {r: 255, g: 0, b: 0}, {r: 0, g: 0, b: 0},
+                            {r: 255, g: 0, b: 0}, {r: 0, g: 0, b: 0}, {r: 255, g: 0, b: 0}, {r: 0, g: 0, b: 0},
+                            {r: 255, g: 0, b: 0}, {r: 0, g: 0, b: 0}, {r: 255, g: 0, b: 0}, {r: 0, g: 0, b: 0}
+                        ]
+                    },
+                    "user_1_2": {
                         colors: [
                             {r: 0, g: 0, b: 255}, {r: 0, g: 0, b: 0}, {r: 0, g: 0, b: 255}, {r: 0, g: 0, b: 0},
                             {r: 0, g: 0, b: 255}, {r: 0, g: 0, b: 0}, {r: 0, g: 0, b: 255}, {r: 0, g: 0, b: 0},
