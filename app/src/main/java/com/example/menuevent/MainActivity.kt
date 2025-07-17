@@ -1637,33 +1637,6 @@ fun MainScreen(
         ) {
             Text("Sélectionnez votre place", style = MaterialTheme.typography.headlineSmall)
             
-            // Statut de l'animation
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = if (activeAnimationConfig != null) 
-                        MaterialTheme.colorScheme.primaryContainer 
-                    else 
-                        MaterialTheme.colorScheme.surfaceVariant
-                )
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = "🎭 Statut Animation",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = animationStatus,
-                        style = MaterialTheme.typography.bodyMedium,
-                        textAlign = TextAlign.Center
-                    )
-                }
-            }
-
             // Sélecteur d'événement
             EventDropdown(
                 events = events,
@@ -1778,40 +1751,6 @@ fun MainScreen(
                 Text("Valider")
             }
             
-            // Bouton pour déclencher manuellement l'animation
-            if (activeAnimationConfig != null) {
-                Button(
-                    onClick = {
-                        coroutineScope.launch {
-                            try {
-                                val authResult = auth.signInAnonymously().await()
-                                val userId = authResult.user?.uid ?: ""
-                                
-                                val animationTriggered = MainActivity.triggerAnimation(
-                                    httpClient,
-                                    activeAnimationConfig!!.animationType,
-                                    "user_${selectedRow ?: 1}_${selectedSeat ?: 1}"
-                                )
-                                
-                                if (animationTriggered) {
-                                    Toast.makeText(context, "Animation déclenchée!", Toast.LENGTH_SHORT).show()
-                                } else {
-                                    Toast.makeText(context, "Erreur lors du déclenchement", Toast.LENGTH_SHORT).show()
-                                }
-                            } catch (e: Exception) {
-                                Log.e("Animation", "Erreur: ${e.message}")
-                                Toast.makeText(context, "Erreur: ${e.message}", Toast.LENGTH_LONG).show()
-                            }
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.secondary
-                    )
-                ) {
-                    Text("🎭 Déclencher Animation")
-                }
-            }
         }
     }
 }
@@ -1981,7 +1920,7 @@ fun ColorAnimationView(
             col = col,
             onFramesLoaded = { id, frames ->
                 animationFrames = frames
-                animationStatus = "Package reçu: ${frames.size} frames"
+                animationStatus = "Package reçu"
                 Log.d("ColorAnimationView", "📦 Animation frames loaded: $id with ${frames.size} frames")
             },
             onFramesError = { error ->
@@ -2081,22 +2020,6 @@ fun ColorAnimationView(
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Bold
                     )
-                } else if (animationFrames != null) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text(
-                            text = "📦 Package reçu",
-                            color = if (isLightColor(currentColor)) Color.Black else Color.White,
-                            style = MaterialTheme.typography.headlineSmall,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = "${animationFrames!!.size} frames",
-                            color = if (isLightColor(currentColor)) Color.Black else Color.White,
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                    }
                 } else {
                     Text(
                         text = "En attente...",
@@ -2194,11 +2117,11 @@ fun WaitingRoomScreen(
             
             // Montrer une notification si c'est un nouveau package ou une mise à jour
             if (previousPackage == null) {
-                showPackageNotification("📦 Package d'animation reçu! ${animationPackage.frames.size} frames")
+                showPackageNotification("📦 Package couleur reçu (${animationPackage.frames.size} frames)")
             } else if (previousPackage.userId != animationPackage.userId || 
                        previousPackage.animationType != animationPackage.animationType ||
                        previousPackage.frames.size != animationPackage.frames.size) {
-                showPackageNotification("🔄 Nouveau package d'animation! ${animationPackage.frames.size} frames")
+                showPackageNotification("🔄 Nouveau package couleur (${animationPackage.frames.size} frames)")
             }
         } else {
             Log.d("Animation", "No animation package available for user")
@@ -2313,7 +2236,7 @@ fun WaitingRoomScreen(
                 col = userSeat.seat,
                 onFramesLoaded = { id, frames ->
                     animationFrames = frames
-                    animationStatus = "Package reçu: ${frames.size} frames ($id)"
+                    animationStatus = "Package reçu"
                     Log.d("WaitingRoomScreen", "📦 Animation frames loaded: $id with ${frames.size} frames")
                 },
                 onFramesError = { error ->
@@ -2500,62 +2423,11 @@ fun WaitingRoomScreen(
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
-                        text = "Type: ${getAnimationDisplayName(currentAnimation?.animationType ?: "")}",
-                        style = MaterialTheme.typography.bodyLarge
-                    )
-                    Text(
                         text = "Heure de début: ${formatDateTime(currentAnimation?.startTime ?: "")}",
                         style = MaterialTheme.typography.bodyLarge,
                         fontWeight = FontWeight.Medium
                     )
-                    Text(
-                        text = "Heure de fin: ${formatDateTime(currentAnimation?.endTime ?: "")}",
-                        style = MaterialTheme.typography.bodyLarge,
-                        fontWeight = FontWeight.Medium
-                    )
                     Spacer(modifier = Modifier.height(8.dp))
-                    
-                    // Informations sur le package d'animation utilisateur
-                    if (userAnimationPackage != null) {
-                        Text(
-                            text = "📦 Votre Package d'Animation",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.secondary
-                        )
-                        Text(
-                            text = "ID Utilisateur: ${userAnimationPackage?.userId}",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            text = "Nombre de frames: ${userAnimationPackage?.frames?.size ?: 0}",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            text = "Framerate: ${userAnimationPackage?.frameRate ?: 0} fps",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                    } else if (isLoadingPackage) {
-                        Text(
-                            text = "📦 Chargement du package d'animation...",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = TextAlign.Center
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                    } else {
-                        Text(
-                            text = "📦 Aucun package d'animation disponible pour votre siège",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = TextAlign.Center
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                    }
                     
                     // Indicateur de mise à jour en temps réel
                     if (isListening) {

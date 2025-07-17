@@ -49,7 +49,7 @@
             font-size: 1.1em;
         }
 
-        select, input[type="time"], input[type="datetime-local"] {
+        select, input[type="text"] {
             width: 100%;
             padding: 12px;
             border: 2px solid #ddd;
@@ -57,6 +57,24 @@
             font-size: 1em;
             background: white;
             transition: border-color 0.3s;
+            font-family: monospace;
+        }
+
+        /* Time input specific styling */
+        input[type="text"]#animationStartTime {
+            text-align: center;
+            font-size: 1.2em;
+            letter-spacing: 1px;
+        }
+
+        input[type="text"]#animationStartTime:invalid {
+            border-color: #dc3545;
+            background-color: #fff5f5;
+        }
+
+        input[type="text"]#animationStartTime:valid {
+            border-color: #28a745;
+            background-color: #f8fff8;
         }
 
         select:focus, input:focus {
@@ -144,7 +162,8 @@
         <form id="configForm">
             <div class="form-group">
                 <label for="animationStartTime">⏰ Heure de début de l'animation</label>
-                <input type="datetime-local" id="animationStartTime" name="animationStartTime" required>
+                <input type="text" id="animationStartTime" name="animationStartTime" pattern="^([0-1]?[0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$" placeholder="Tapez 6 chiffres (ex: 145020 → 14:50:20)" maxlength="8" required>
+                <small style="color: #666; font-size: 0.9em;">Tapez 6 chiffres consécutifs (ex: 145020 devient 14:50:20)</small>
             </div>
 
             <div class="form-group">
@@ -152,11 +171,8 @@
                 <select id="eventType" name="eventType" required>
                     <option value="">Sélectionnez un type d'événement</option>
                     <option value="football_stadium">🏈 Stade de Football</option>
-                    <option value="theater">🎭 Théâtre</option>
                     <option value="concert_hall">🎵 Salle de Concert</option>
-                    <option value="arena">🏟️ Aréna Sportive</option>
-                    <option value="conference_center">📊 Centre de Conférence</option>
-                    <option value="cinema">🎬 Cinéma</option>
+                    <option value="theater">🎭 Théâtre</option>
                 </select>
             </div>
 
@@ -271,7 +287,46 @@
             if (eventType && animationType && time) {
                 const eventText = eventTypeSelect.options[eventTypeSelect.selectedIndex].text;
                 const animationText = animationTypeSelect.options[animationTypeSelect.selectedIndex].text;
-                const formattedTime = new Date(time).toLocaleString('fr-FR');
+                
+                // Validate and convert time-only input to full datetime for preview
+                const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$/;
+                if (!timeRegex.test(time)) {
+                    preview.style.display = 'none';
+                    return;
+                }
+                
+                // Create datetime string directly without timezone conversion for preview
+                const [hours, minutes, seconds] = time.split(':');
+                
+                // Get today's date for preview
+                const today = new Date();
+                const currentHour = today.getHours();
+                const currentMinute = today.getMinutes();
+                const currentSecond = today.getSeconds();
+                
+                // Check if entered time has already passed today
+                const enteredTime = parseInt(hours, 10) * 3600 + parseInt(minutes, 10) * 60 + parseInt(seconds, 10);
+                const currentTime = currentHour * 3600 + currentMinute * 60 + currentSecond;
+                
+                // If time has passed, use tomorrow's date
+                const targetDate = new Date(today);
+                if (enteredTime <= currentTime) {
+                    targetDate.setDate(targetDate.getDate() + 1);
+                }
+                
+                // Create a proper Date object for formatting
+                const targetTime = new Date(targetDate);
+                targetTime.setHours(parseInt(hours, 10), parseInt(minutes, 10), parseInt(seconds, 10), 0);
+                
+                const formattedTime = targetTime.toLocaleString('fr-FR', {
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                    hour12: false
+                });
 
                 document.getElementById('previewTime').textContent = formattedTime;
                 document.getElementById('previewEvent').textContent = eventText;
@@ -287,12 +342,59 @@
         animationTypeSelect.addEventListener('change', updatePreview);
         timeInput.addEventListener('change', updatePreview);
 
+        // Add auto-formatting for 6-digit input
+        timeInput.addEventListener('input', function(e) {
+            let value = e.target.value;
+            
+            // Remove all non-digit characters
+            const digitsOnly = value.replace(/\D/g, '');
+            
+            // If we have 6 digits, format as HH:MM:SS
+            if (digitsOnly.length === 6) {
+                const formatted = digitsOnly.substring(0, 2) + ':' + 
+                                  digitsOnly.substring(2, 4) + ':' + 
+                                  digitsOnly.substring(4, 6);
+                e.target.value = formatted;
+                value = formatted;
+            }
+            // If we have less than 6 digits, show them as typed
+            else if (digitsOnly.length > 0 && digitsOnly.length < 6) {
+                e.target.value = digitsOnly;
+                value = digitsOnly;
+            }
+            // If empty, clear
+            else if (digitsOnly.length === 0) {
+                e.target.value = '';
+                value = '';
+            }
+            
+            // Validate final formatted time
+            const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$/;
+            
+            if (value && timeRegex.test(value)) {
+                // Additional validation for hours, minutes, seconds
+                const [hours, minutes, seconds] = value.split(':');
+                if (parseInt(hours, 10) > 23 || parseInt(minutes, 10) > 59 || parseInt(seconds, 10) > 59) {
+                    e.target.setCustomValidity('Heure invalide. Heures: 00-23, Minutes/Secondes: 00-59');
+                } else {
+                    e.target.setCustomValidity('');
+                }
+            } else if (value && !timeRegex.test(value) && digitsOnly.length === 6) {
+                e.target.setCustomValidity('Heure invalide. Heures: 00-23, Minutes/Secondes: 00-59');
+            } else if (value && digitsOnly.length < 6) {
+                e.target.setCustomValidity('Tapez 6 chiffres (ex: 145020 pour 14:50:20)');
+            } else {
+                e.target.setCustomValidity('');
+            }
+        });
+
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
             
             const formData = new FormData(form);
             const animationType = formData.get('animationType');
             const eventType = formData.get('eventType');
+            const timeOnly = formData.get('animationStartTime');
             const selectedAnimation = animationData[animationType];
             
             if (!selectedAnimation) {
@@ -304,8 +406,46 @@
                 return;
             }
 
+            // Validate time format before processing
+            const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$/;
+            if (!timeRegex.test(timeOnly)) {
+                messageDiv.innerHTML = `
+                    <div class="message error">
+                        ❌ Format d'heure invalide. Utilisez HH:MM:SS (ex: 14:30:00)
+                    </div>
+                `;
+                return;
+            }
+
+            // Create datetime string directly without timezone conversion
+            const [hours, minutes, seconds] = timeOnly.split(':');
+            
+            // Get today's date in YYYY-MM-DD format (local date)
+            const today = new Date();
+            const currentHour = today.getHours();
+            const currentMinute = today.getMinutes();
+            const currentSecond = today.getSeconds();
+            
+            // Check if entered time has already passed today
+            const enteredTime = parseInt(hours, 10) * 3600 + parseInt(minutes, 10) * 60 + parseInt(seconds, 10);
+            const currentTime = currentHour * 3600 + currentMinute * 60 + currentSecond;
+            
+            // If time has passed, use tomorrow's date
+            const targetDate = new Date(today);
+            if (enteredTime <= currentTime) {
+                targetDate.setDate(targetDate.getDate() + 1);
+            }
+            
+            // Format date as YYYY-MM-DD
+            const year = targetDate.getFullYear();
+            const month = String(targetDate.getMonth() + 1).padStart(2, '0');
+            const day = String(targetDate.getDate()).padStart(2, '0');
+            
+            // Create datetime string directly (no timezone conversion)
+            const fullDateTime = `${year}-${month}-${day}T${hours.padStart(2, '0')}:${minutes.padStart(2, '0')}:${seconds.padStart(2, '0')}`;
+
             const config = {
-                animationStartTime: formData.get('animationStartTime'),
+                animationStartTime: fullDateTime,
                 eventType: eventType,
                 animationType: animationType,
                 animationData: selectedAnimation,
@@ -342,14 +482,9 @@
                 const docRef = await addDoc(collection(db, 'animation_configs'), config);
                 
                 // Also save animation data to a separate collection for easy access
-                const animationStartTime = formData.get('animationStartTime');
-                const formattedStartTime = animationStartTime.includes(':') && animationStartTime.split(':').length === 2 
-                    ? animationStartTime + ':00'  // Add seconds if missing
-                    : animationStartTime;
-                
                 await setDoc(doc(db, 'animations', selectedAnimation.animationId), {
                     ...selectedAnimation,
-                    startTime: formattedStartTime + 'Z'  // Store with Z suffix for UTC
+                    startTime: fullDateTime  // No timezone suffix - store as-is
                 });
                 
                 console.log('Configuration sauvegardée avec l\'ID: ', docRef.id);
@@ -379,9 +514,7 @@
             }
         });
 
-        const now = new Date();
-        now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
-        timeInput.min = now.toISOString().slice(0, 16);
+        // No need to set min for time input since we handle today/tomorrow logic automatically
     </script>
 </body>
 </html>
