@@ -239,6 +239,10 @@ class MainActivity : ComponentActivity() {
     private lateinit var auth: FirebaseAuth
     private lateinit var db: FirebaseFirestore
     private val httpClient = OkHttpClient()
+    
+    // Time synchronization components
+    private val timeSyncManager = TimeSynchronizationManager.getInstance()
+    private val syncAnimationScheduler = SynchronizedAnimationScheduler()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -246,6 +250,10 @@ class MainActivity : ComponentActivity() {
         FirebaseApp.initializeApp(this)
         auth = FirebaseAuth.getInstance()
         db = FirebaseFirestore.getInstance()
+        
+        // Initialize time synchronization
+        timeSyncManager.initialize()
+        Log.d("MainActivity", "Time synchronization initialized: ${timeSyncManager.getSyncStatus()}")
         
         setContent {
             MenuEventTheme {
@@ -263,6 +271,13 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+    
+    override fun onDestroy() {
+        super.onDestroy()
+        // Cleanup time synchronization
+        timeSyncManager.cleanup()
+        Log.d("MainActivity", "Time synchronization cleaned up")
     }
 
     // Fonction pour récupérer la configuration d'animation active
@@ -1329,7 +1344,7 @@ class MainActivity : ComponentActivity() {
         }
         
         /**
-         * Schedule color animation according to startTime
+         * Schedule color animation according to startTime with server synchronization
          */
         private fun scheduleColorAnimation(
             animationId: String,
@@ -1341,63 +1356,34 @@ class MainActivity : ComponentActivity() {
             onAnimationEnd: (String) -> Unit,
             onAnimationError: (String) -> Unit
         ) {
-            try {
-                // Parse startTime - handle multiple formats
-                val startDate = try {
-                    when {
-                        startTime.endsWith("Z") -> {
-                            // Try full format with Z first
-                            try {
-                                SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.getDefault()).parse(startTime)
-                            } catch (e: Exception) {
-                                // Try without seconds
-                                SimpleDateFormat("yyyy-MM-dd'T'HH:mm'Z'", Locale.getDefault()).parse(startTime)
-                            }
-                        }
-                        startTime.contains("T") -> {
-                            // Try format without Z
-                            try {
-                                SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault()).parse(startTime)
-                            } catch (e: Exception) {
-                                // Try without seconds (datetime-local format)
-                                SimpleDateFormat("yyyy-MM-dd'T'HH:mm", Locale.getDefault()).parse(startTime)
-                            }
-                        }
-                        else -> {
-                            Log.e("Animation", "Unknown date format: $startTime")
-                            null
-                        }
+            Log.d("Animation", "🎨 Scheduling synchronized color animation: $animationId")
+            Log.d("Animation", "  - Start time: $startTime")
+            Log.d("Animation", "  - Frame rate: $frameRate")
+            Log.d("Animation", "  - Colors: ${colors.size}")
+            
+            // Get the singleton instances
+            val timeSyncManager = TimeSynchronizationManager.getInstance()
+            val syncScheduler = SynchronizedAnimationScheduler()
+            
+            Log.d("Animation", "  - Sync status: ${syncScheduler.getSyncStatus()}")
+            
+            // Use the new synchronized animation scheduler
+            syncScheduler.scheduleAnimationLegacy(
+                animationId = animationId,
+                startTimeString = startTime,
+                colors = colors,
+                frameRate = frameRate,
+                onAnimationStart = { onAnimationStart(animationId) },
+                onAnimationFrame = { color: ColorFrame ->
+                    // Find the frame index
+                    val frameIndex = colors.indexOf(color)
+                    if (frameIndex >= 0) {
+                        onAnimationFrame(frameIndex, color)
                     }
-                } catch (e: Exception) {
-                    Log.e("Animation", "Failed to parse start time: $startTime", e)
-                    null
-                }
-                
-                val currentDate = Date()
-                
-                if (startDate == null) {
-                    Log.e("Animation", "Invalid start time format: $startTime")
-                    onAnimationError("Format d'heure invalide: $startTime")
-                    return
-                }
-                
-                val delayMs = startDate.time - currentDate.time
-                
-                if (delayMs > 0) {
-                    Log.d("Animation", "🎨 Scheduling color animation to start in ${delayMs}ms")
-                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                        playColorAnimation(animationId, colors, frameRate, onAnimationStart, onAnimationFrame, onAnimationEnd)
-                    }, delayMs)
-                } else {
-                    Log.d("Animation", "🎨 Start time has passed, waiting for next scheduled start time")
-                    // Don't play immediately - animation should only start at scheduled time
-                    // Frames are loaded but animation waits for proper start time
-                }
-                
-            } catch (e: Exception) {
-                Log.e("Animation", "Error scheduling color animation: ${e.message}")
-                onAnimationError("Erreur de planification: ${e.message}")
-            }
+                },
+                onAnimationEnd = { onAnimationEnd(animationId) },
+                onAnimationError = onAnimationError
+            )
         }
         
         /**
@@ -2302,15 +2288,9 @@ fun QRCodeScanner(
                 }
             }
         )
-    } else if (hasPermission) {
-        // Caméra réelle
-        CameraQRScanner(
-            onQRScanned = onQRScanned,
-            onDismiss = onDismiss
-        )
     } else {
-        // Simulateur pour test
-        QRSimulator(
+        // Toujours utiliser la caméra réelle
+        CameraQRScanner(
             onQRScanned = onQRScanned,
             onDismiss = onDismiss
         )
@@ -2383,7 +2363,7 @@ fun CameraQRScanner(
                     },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(200.dp)
+                        .height(400.dp)
                 )
             }
         },
@@ -2864,7 +2844,7 @@ fun WaitingRoomScreen(
     var animationStatus by remember { mutableStateOf("Chargement des frames...") }
     var currentColor by remember { mutableStateOf(Color.Black) }
     var framesListener by remember { mutableStateOf<com.google.firebase.firestore.ListenerRegistration?>(null) }
-    var scheduledListener by remember { mutableStateOf<com.google.firebase.firestore.ListenerRegistration?>(null) }
+    // scheduledListener removed - no animation scheduling in waiting room setup
     // État pour l'animation en temps réel
     var currentAnimation by remember { mutableStateOf(scheduledAnimation) }
     var isListening by remember { mutableStateOf(false) }
@@ -3028,68 +3008,37 @@ fun WaitingRoomScreen(
         for (animationType in animationTypes) {
             Log.d("WaitingRoomScreen", "📦 Trying animation type: $animationType")
             
-            // Load frames only (not play)
+            // Load frames only (not play) - just to show package received
             framesListener = MainActivity.loadAnimationFrames(
                 animationId = animationType,
                 row = userSeat.row,
                 col = userSeat.seat,
                 onFramesLoaded = { id, frames ->
                     animationFrames = frames
-                    animationStatus = "Package reçu"
+                    animationStatus = "📦 Package reçu (${frames.size} frames)"
                     Log.d("WaitingRoomScreen", "📦 Animation frames loaded: $id with ${frames.size} frames")
                 },
                 onFramesError = { error ->
                     Log.d("WaitingRoomScreen", "📦 No frames found for $animationType: $error")
                 }
             )
-            
-            // Set up scheduled animation listener for this type
-            Log.d("WaitingRoomScreen", "🎨 Setting up scheduled animation listener for $animationType")
-            
-            scheduledListener = MainActivity.loadAndPlayAnimation(
-                animationId = animationType,
-                row = userSeat.row,
-                col = userSeat.seat,
-            onAnimationLoaded = { id, frameCount ->
-                Log.d("WaitingRoomScreen", "🎨 Scheduled animation loaded: $id with $frameCount frames")
-            },
-            onAnimationStart = { id ->
-                animationStatus = "Animation en cours..."
-                isAnimationFullScreen = true
-                Log.d("WaitingRoomScreen", "🎨 Scheduled animation started: $id")
-            },
-            onAnimationFrame = { frameIndex, colorFrame ->
-                currentColor = androidx.compose.ui.graphics.Color(
-                    red = colorFrame.r / 255f,
-                    green = colorFrame.g / 255f,
-                    blue = colorFrame.b / 255f,
-                    alpha = 1f
-                )
-                Log.d("WaitingRoomScreen", "🎨 Frame $frameIndex: RGB(${colorFrame.r}, ${colorFrame.g}, ${colorFrame.b})")
-            },
-            onAnimationEnd = { id ->
-                animationStatus = "Animation terminée"
-                isAnimationFullScreen = false
-                Log.d("WaitingRoomScreen", "🎨 Scheduled animation ended: $id")
-            },
-            onAnimationError = { error ->
-                animationStatus = "Erreur: $error"
-                isAnimationFullScreen = false
-                Log.e("WaitingRoomScreen", "🎨 Scheduled animation error: $error")
-            }
-        )
         }
         
         // Load user animation package
         loadUserAnimationPackage()
+        
+        // DO NOT set up scheduled animation listener here
+        // Animation scheduling should only happen when explicitly triggered by admin
+        // Users should only receive packages in waiting room, not start animations
+        Log.d("WaitingRoomScreen", "📦 Waiting room setup complete - package loading only")
     }
     
     // Cleanup listeners on dispose
     DisposableEffect(userSeat) {
         onDispose {
-            Log.d("WaitingRoomScreen", "🎨 Cleaning up animation listeners")
+            Log.d("WaitingRoomScreen", "📦 Cleaning up animation frames listener")
             framesListener?.remove()
-            scheduledListener?.remove()
+            // scheduledListener not used in waiting room setup
         }
     }
     
