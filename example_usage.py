@@ -44,8 +44,8 @@ def main():
     
     # Example 1: Basic Animation Generation
     print("📝 Example 1: Basic Animation Generation")
-    print("Generate a wave animation for a medium stadium (20x30 grid)")
-    command1 = "python split_animation_grid.py --animation wave --rows 20 --cols 30 --fps 15"
+    print("Generate a wave animation for a medium stadium (10x10 grid)")
+    command1 = "python split_animation_grid.py --animation wave --rows 10 --cols 10 --fps 15"
     run_command(command1, "Basic Wave Animation Generation")
     
     # Example 2: Animation with Firebase Upload
@@ -59,20 +59,20 @@ def main():
     print("\n📝 Example 3: Real-Time Event Animation")
     print("Deploy fireworks animation during live event (5 minutes warning)")
     future_time = get_future_time(5)  # 5 minutes from now
-    command3 = f"python split_animation_grid.py --animation fireworks --upload-firebase --start-time '{future_time}' --event-type concert_hall --rows 15 --cols 25"
+    command3 = f"python split_animation_grid.py --animation fireworks --upload-firebase --start-time '{future_time}' --event-type concert_hall --rows 10 --cols 10"
     run_command(command3, "Real-Time Fireworks Animation")
     
     # Example 4: Large Stadium Configuration
     print("\n📝 Example 4: Large Stadium Configuration")
-    print("Generate pulse animation for large stadium (30x50 grid)")
+    print("Generate pulse animation for large stadium (10x10 grid)")
     future_time = get_future_time(15)  # 15 minutes from now
-    command4 = f"python split_animation_grid.py --animation pulse --rows 30 --cols 50 --upload-firebase --start-time '{future_time}' --event-type arena"
+    command4 = f"python split_animation_grid.py --animation pulse --rows 10 --cols 10 --upload-firebase --start-time '{future_time}' --event-type arena"
     run_command(command4, "Large Stadium Pulse Animation")
     
     # Example 5: Custom Configuration
     print("\n📝 Example 5: Custom Configuration")
     print("Generate wave animation with custom frame rate")
-    command5 = "python split_animation_grid.py --animation wave --fps 20 --rows 25 --cols 40 --verbose"
+    command5 = "python split_animation_grid.py --animation wave --fps 20 --rows 10 --cols 10 --verbose"
     run_command(command5, "Custom Frame Rate Wave Animation")
     
     # Example 6: Testing Different Event Types

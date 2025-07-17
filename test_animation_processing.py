@@ -9,8 +9,8 @@ from PIL import Image, ImageSequence
 
 # Configuration
 INPUT_PATH = "blue_black_flash_10s.gif"
-ROWS = 30
-COLS = 40
+ROWS = 10
+COLS = 10
 
 def get_average_color(frame):
     """

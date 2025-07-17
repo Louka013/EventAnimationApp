@@ -54,7 +54,7 @@ def deploy_working_checkboard_flash():
                     fb.update_document("animation_configs", config_id, {"status": "inactive"})
                     print(f"   - Deactivated config: {config_id}")
         
-        # Create users dictionary for a reasonable grid (10x10)
+        # Create users dictionary for 10x10 grid (final configuration)
         users = {}
         
         for row in range(1, 11):  # Rows 1-10

@@ -21,15 +21,15 @@
     }
   },
   "grid": {
-    "default_rows": 20,
-    "default_cols": 30,
-    "max_rows": 50,
-    "max_cols": 100,
+    "default_rows": 10,
+    "default_cols": 10,
+    "max_rows": 10,
+    "max_cols": 10,
     "stadium_layouts": {
-      "small": {"rows": 10, "cols": 15},
-      "medium": {"rows": 20, "cols": 30},
-      "large": {"rows": 30, "cols": 50},
-      "mega": {"rows": 50, "cols": 100}
+      "small": {"rows": 10, "cols": 10},
+      "medium": {"rows": 10, "cols": 10},
+      "large": {"rows": 10, "cols": 10},
+      "mega": {"rows": 10, "cols": 10}
     }
   },
   "output": {

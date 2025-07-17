@@ -91,10 +91,10 @@ def deploy_proper_checkboard_flash():
         
         # Create individual userAnimationPackages for each seat
         created_count = 0
-        total_seats = 30 * 40  # 30 rows × 40 seats
+        total_seats = 10 * 10  # 10 rows × 10 seats
         
-        for row in range(1, 31):  # Rows 1-30
-            for seat in range(1, 41):  # Seats 1-40
+        for row in range(1, 11):  # Rows 1-10
+            for seat in range(1, 11):  # Seats 1-10
                 user_id = f"user_{row}_{seat}"
                 
                 # Choose pattern based on odd/even seat
@@ -163,17 +163,17 @@ def deploy_proper_checkboard_flash():
         print(f"   - Event Type: football_stadium")
         print(f"   - Start Time: {animation_start_time}Z")
         print(f"   - UserAnimationPackages created: {created_count}")
-        print(f"   - Coverage: 30 rows × 40 seats = {total_seats} seats")
+        print(f"   - Coverage: 10 rows × 10 seats = {total_seats} seats")
         
         print(f"\n🎨 Checkboard Pattern:")
         print(f"   - ODD seats (1, 3, 5, etc.): RED flash alternating with BLACK")
         print(f"   - EVEN seats (2, 4, 6, etc.): BLUE flash alternating with BLACK")
         
         print(f"\n🔥 Animation will start in 2 minutes!")
-        print(f"   Test with any seat from row 1-30, seat 1-40")
+        print(f"   Test with any seat from row 1-10, seat 1-10")
         
         # Verify specific test users
-        test_users = ["user_2_4", "user_4_1", "user_1_1", "user_30_40"]
+        test_users = ["user_2_4", "user_4_1", "user_1_1", "user_10_10"]
         print(f"\n✅ Test users verification:")
         for user_id in test_users:
             package = fb.get_document("userAnimationPackages", user_id)

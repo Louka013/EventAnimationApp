@@ -16,7 +16,7 @@ Features:
 - Automatic timestamp generation for synchronization
 
 Usage:
-    python split_animation_grid.py --animation wave --rows 20 --cols 30 --fps 15
+    python split_animation_grid.py --animation wave --rows 10 --cols 10 --fps 15
     python split_animation_grid.py --animation rainbow --upload-firebase
 """
 
@@ -86,10 +86,10 @@ class AnimationGridSplitter:
                 }
             },
             "grid": {
-                "default_rows": 20,
-                "default_cols": 30,
-                "max_rows": 50,
-                "max_cols": 100
+                "default_rows": 10,
+                "default_cols": 10,
+                "max_rows": 10,
+                "max_cols": 10
             },
             "output": {
                 "base_path": "./animations",
@@ -374,10 +374,10 @@ def main():
     parser.add_argument("--animation", "-a", required=True, 
                        choices=["wave", "rainbow", "pulse", "fireworks"],
                        help="Animation type to generate")
-    parser.add_argument("--rows", "-r", type=int, default=20,
-                       help="Number of rows in the grid (default: 20)")
-    parser.add_argument("--cols", "-c", type=int, default=30,
-                       help="Number of columns in the grid (default: 30)")
+    parser.add_argument("--rows", "-r", type=int, default=10,
+                       help="Number of rows in the grid (default: 10)")
+    parser.add_argument("--cols", "-c", type=int, default=10,
+                       help="Number of columns in the grid (default: 10)")
     parser.add_argument("--fps", type=int, help="Override frame rate")
     parser.add_argument("--start-time", "-t", help="Start time (ISO format: 2025-07-11T21:00:00)")
     parser.add_argument("--event-type", "-e", default="football_stadium",

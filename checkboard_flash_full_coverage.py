@@ -45,9 +45,9 @@ def deploy_full_coverage_checkboard_flash():
         # Generate animation for a much larger grid to cover all possible seats
         users = {}
         
-        # Cover rows 1-20 and seats 1-30 to ensure full coverage
-        for row in range(1, 21):  # Rows 1-20
-            for seat in range(1, 31):  # Seats 1-30
+        # Cover rows 1-10 and seats 1-10 to ensure full coverage
+        for row in range(1, 11):  # Rows 1-10
+            for seat in range(1, 11):  # Seats 1-10
                 user_id = f"user_{row}_{seat}"
                 
                 # Check if seat number is odd or even
@@ -61,9 +61,9 @@ def deploy_full_coverage_checkboard_flash():
                     }
         
         print(f"📊 Generated {len(users)} users covering:")
-        print(f"   - Rows: 1-20")
-        print(f"   - Seats: 1-30")
-        print(f"   - Total combinations: {20 * 30} = {len(users)}")
+        print(f"   - Rows: 1-10")
+        print(f"   - Seats: 1-10")
+        print(f"   - Total combinations: {10 * 10} = {len(users)}")
         
         # First, deactivate any existing active animations
         print("🔄 Deactivating existing animations...")
@@ -129,14 +129,14 @@ def deploy_full_coverage_checkboard_flash():
         print(f"\n🎨 Checkboard Pattern:")
         print(f"   - ODD seats (1, 3, 5, etc.): RED flash alternating with BLACK")
         print(f"   - EVEN seats (2, 4, 6, etc.): BLUE flash alternating with BLACK")
-        print(f"   - Grid: 20 rows × 30 seats = {len(users)} users")
+        print(f"   - Grid: 10 rows × 10 seats = {len(users)} users")
         
         print(f"\n🔥 Animation will start in 1 minute!")
         print(f"   Open the Android app and select:")
         print(f"   - Event: Stade de foot")
         print(f"   - Tribune: Tribune Nord")
-        print(f"   - Row: 1-20 (any row)")
-        print(f"   - Seat: 1-30 (any seat)")
+        print(f"   - Row: 1-10 (any row)")
+        print(f"   - Seat: 1-10 (any seat)")
         print(f"   Then enter the waiting room to see the animation!")
         
         # Specifically check for user_4_1

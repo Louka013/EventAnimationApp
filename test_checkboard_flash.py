@@ -46,8 +46,8 @@ def test_checkboard_flash():
         # Generate animation for a few test seats
         users = {}
         
-        for row in range(1, 3):  # Rows 1-2
-            for seat in range(1, 5):  # Seats 1-4
+        for row in range(1, 11):  # Rows 1-10
+            for seat in range(1, 11):  # Seats 1-10
                 user_id = f"user_{row}_{seat}"
                 
                 # Check if seat number is odd or even

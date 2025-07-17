@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Deploy checkboard_flash animation with correct stadium size: 30 rows x 40 seats
+Deploy checkboard_flash animation with correct stadium size: 10 rows x 10 seats
 """
 
 from firebase_web_admin import FirebaseWebClient
@@ -10,7 +10,7 @@ ANIMATION_ID = "checkboard_flash"
 
 def deploy_30x40_checkboard_flash():
     """
-    Deploy checkboard_flash animation with correct stadium dimensions: 30 rows x 40 seats
+    Deploy checkboard_flash animation with correct stadium dimensions: 10 rows x 10 seats
     """
     try:
         # Initialize Firebase Web client
@@ -21,7 +21,7 @@ def deploy_30x40_checkboard_flash():
         start_time_utc = now_utc + timedelta(minutes=1)
         animation_start_time = start_time_utc.strftime('%Y-%m-%dT%H:%M:%S')
         
-        print(f"🎨 Deploying checkboard_flash animation (30 ROWS × 40 SEATS)")
+        print(f"🎨 Deploying checkboard_flash animation (10 ROWS × 10 SEATS)")
         print(f"🌍 Current UTC time: {now_utc.strftime('%Y-%m-%dT%H:%M:%SZ')}")
         print(f"⏰ Animation start time: {animation_start_time}Z")
         
@@ -45,9 +45,9 @@ def deploy_30x40_checkboard_flash():
         # Generate animation for correct stadium dimensions
         users = {}
         
-        # Cover rows 1-30 and seats 1-40 (actual stadium dimensions)
-        for row in range(1, 31):  # Rows 1-30
-            for seat in range(1, 41):  # Seats 1-40
+        # Cover rows 1-10 and seats 1-10 (actual stadium dimensions)
+        for row in range(1, 11):  # Rows 1-10
+            for seat in range(1, 11):  # Seats 1-10
                 user_id = f"user_{row}_{seat}"
                 
                 # Check if seat number is odd or even
@@ -61,9 +61,9 @@ def deploy_30x40_checkboard_flash():
                     }
         
         print(f"📊 Generated {len(users)} users covering:")
-        print(f"   - Rows: 1-30")
-        print(f"   - Seats: 1-40")
-        print(f"   - Total combinations: {30 * 40} = {len(users)}")
+        print(f"   - Rows: 1-10")
+        print(f"   - Seats: 1-10")
+        print(f"   - Total combinations: {10 * 10} = {len(users)}")
         
         # First, deactivate any existing active animations
         print("🔄 Deactivating existing animations...")
@@ -116,7 +116,7 @@ def deploy_30x40_checkboard_flash():
             print("❌ Failed to add animation config")
             return
         
-        print(f"✅ Checkboard flash animation (30×40) deployed successfully!")
+        print(f"✅ Checkboard flash animation (10×10) deployed successfully!")
         print(f"   - Config ID: {config_id}")
         print(f"   - Animation ID: {ANIMATION_ID}")
         print(f"   - Event Type: football_stadium")
@@ -129,18 +129,18 @@ def deploy_30x40_checkboard_flash():
         print(f"\n🎨 Checkboard Pattern:")
         print(f"   - ODD seats (1, 3, 5, etc.): RED flash alternating with BLACK")
         print(f"   - EVEN seats (2, 4, 6, etc.): BLUE flash alternating with BLACK")
-        print(f"   - Grid: 30 rows × 40 seats = {len(users)} users")
+        print(f"   - Grid: 10 rows × 10 seats = {len(users)} users")
         
         print(f"\n🔥 Animation will start in 1 minute!")
         print(f"   Open the Android app and select:")
         print(f"   - Event: Stade de foot")
         print(f"   - Tribune: Tribune Nord")
-        print(f"   - Row: 1-30 (any row)")
-        print(f"   - Seat: 1-40 (any seat)")
+        print(f"   - Row: 1-10 (any row)")
+        print(f"   - Seat: 1-10 (any seat)")
         print(f"   Then enter the waiting room to see the animation!")
         
         # Check specific users
-        test_users = ["user_4_1", "user_30_40", "user_15_25", "user_1_1"]
+        test_users = ["user_4_1", "user_10_10", "user_5_5", "user_1_1"]
         print(f"\n✅ Test users coverage:")
         for user_id in test_users:
             if user_id in users:

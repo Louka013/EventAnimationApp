@@ -64,7 +64,7 @@ def debug_user_coverage():
         else:
             print(f"❌ user_4_1 NOT FOUND in animation data")
             print(f"   Missing users in row 4:")
-            for seat in range(1, 7):
+            for seat in range(1, 11):
                 user_id = f"user_4_{seat}"
                 if user_id not in users:
                     print(f"   - {user_id}")

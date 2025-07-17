@@ -11,8 +11,8 @@ from firebase_admin import credentials, storage, firestore
 
 # Configuration
 INPUT_PATH = "blue_black_flash_10s.gif"
-ROWS = 30
-COLS = 40
+ROWS = 10
+COLS = 10
 ANIMATION_ID = "blue_black_flash"
 START_TIME = "2025-07-15T20:00:00Z"
 BUCKET_NAME = "data-base-test-6ef5f.appspot.com"

@@ -1690,7 +1690,7 @@ fun MainScreen(
             // Sélecteur de rang
             NumberDropdown(
                 label = "Rang",
-                range = 1..30,
+                range = 1..10,
                 selectedValue = selectedRow,
                 onValueSelected = { row ->
                     selectedRow = row
@@ -1700,7 +1700,7 @@ fun MainScreen(
             // Sélecteur de numéro de place
             NumberDropdown(
                 label = "Numéro de place",
-                range = 1..40,
+                range = 1..10,
                 selectedValue = selectedSeat,
                 onValueSelected = { seat ->
                     selectedSeat = seat

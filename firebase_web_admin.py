@@ -157,6 +157,19 @@ class FirebaseWebClient:
         
         return filtered_docs
     
+    def set_document_at_path(self, path: str, data: Dict[str, Any]) -> bool:
+        """Set a document at a specific path (supports subcollections)"""
+        # Path format: "collection/doc/subcollection/subdoc"
+        url = f"{self.base_url}/{path}"
+        
+        # Convert data to Firestore format
+        firestore_data = {
+            "fields": {k: self._convert_to_firestore_value(v) for k, v in data.items()}
+        }
+        
+        response = self._make_request("PATCH", url, firestore_data)
+        return response.status_code == 200
+    
     def get_current_timestamp(self) -> str:
         """Get current timestamp in ISO format"""
         return datetime.utcnow().isoformat() + "Z"

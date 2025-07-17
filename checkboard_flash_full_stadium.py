@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Deploy checkboard_flash animation with FULL STADIUM COVERAGE using subcollections
+Deploy checkboard_flash animation with 10x10 COVERAGE using subcollections
 """
 
 from firebase_web_admin import FirebaseWebClient
@@ -11,7 +11,7 @@ ANIMATION_ID = "checkboard_flash"
 
 def deploy_full_stadium_checkboard_flash():
     """
-    Deploy checkboard_flash with full stadium coverage using subcollections
+    Deploy checkboard_flash with 10x10 coverage using subcollections
     """
     try:
         # Initialize Firebase Web client
@@ -22,7 +22,7 @@ def deploy_full_stadium_checkboard_flash():
         start_time_utc = now_utc + timedelta(minutes=3)
         animation_start_time = start_time_utc.strftime('%Y-%m-%dT%H:%M:%S')
         
-        print(f"🎨 Deploying checkboard_flash animation (FULL STADIUM COVERAGE)")
+        print(f"🎨 Deploying checkboard_flash animation (10x10 COVERAGE)")
         print(f"🌍 Current UTC time: {now_utc.strftime('%Y-%m-%dT%H:%M:%SZ')}")
         print(f"⏰ Animation start time: {animation_start_time}Z")
         
@@ -75,14 +75,14 @@ def deploy_full_stadium_checkboard_flash():
         
         # Create individual user documents in subcollection
         created_count = 0
-        total_seats = 30 * 40  # 30 rows × 40 seats
+        total_seats = 10 * 10  # 10 rows × 10 seats
         
         # Process in batches to avoid timeout
         batch_size = 50
         current_batch = 0
         
-        for row in range(1, 31):  # Rows 1-30
-            for seat in range(1, 41):  # Seats 1-40
+        for row in range(1, 11):  # Rows 1-10
+            for seat in range(1, 11):  # Seats 1-10
                 user_id = f"user_{row}_{seat}"
                 
                 # Choose pattern based on odd/even seat
@@ -160,13 +160,7 @@ def deploy_full_stadium_checkboard_flash():
                 if created_count % 10 == 0:
                     time.sleep(0.1)
                 
-                # Break after reasonable number for testing
-                if created_count >= 200:  # Test with 200 users first
-                    print(f"   - Stopping at {created_count} users for testing...")
-                    break
-            
-            if created_count >= 200:
-                break
+                # Continue for all 100 users (10x10 grid)
         
         print(f"📊 Created {created_count} user documents in subcollection")
         
@@ -191,7 +185,7 @@ def deploy_full_stadium_checkboard_flash():
             print("❌ Failed to add animation config")
             return
         
-        print(f"✅ Checkboard flash animation (FULL STADIUM) deployed successfully!")
+        print(f"✅ Checkboard flash animation (10x10 GRID) deployed successfully!")
         print(f"   - Config ID: {config_id}")
         print(f"   - Animation ID: {ANIMATION_ID}")
         print(f"   - Event Type: football_stadium")
@@ -208,7 +202,7 @@ def deploy_full_stadium_checkboard_flash():
         print(f"   Test with any seat that was created")
         
         # Test specific users
-        test_users = ["user_1_1", "user_2_4", "user_5_10", "user_10_20"]
+        test_users = ["user_1_1", "user_2_4", "user_5_10", "user_10_10"]
         print(f"\n✅ Testing subcollection access:")
         for user_id in test_users:
             try:
