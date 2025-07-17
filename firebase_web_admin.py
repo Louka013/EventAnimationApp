@@ -173,3 +173,7 @@ class FirebaseWebClient:
     def get_current_timestamp(self) -> str:
         """Get current timestamp in ISO format"""
         return datetime.utcnow().isoformat() + "Z"
+    
+    def _get_current_timestamp(self) -> str:
+        """Get current timestamp in ISO format (internal method)"""
+        return self.get_current_timestamp()

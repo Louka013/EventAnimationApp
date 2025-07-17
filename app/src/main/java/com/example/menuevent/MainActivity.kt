@@ -13,7 +13,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.tooling.preview.Preview as ComposePreview
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -48,6 +48,25 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.BorderStroke
+import androidx.camera.core.*
+import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.camera.view.PreviewView
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.LifecycleOwner
+import com.google.mlkit.vision.barcode.BarcodeScanning
+import com.google.mlkit.vision.barcode.common.Barcode
+import com.google.mlkit.vision.common.InputImage
+import java.util.concurrent.Executor
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
+import androidx.compose.runtime.LaunchedEffect
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.DisposableEffect
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.core.content.ContextCompat
+import androidx.activity.compose.rememberLauncherForActivityResult
 
 // Modèles de données simples pour les sélections
 data class Event(val name: String, val stands: List<String>)
@@ -1783,7 +1802,34 @@ fun StepBasedSeatSelection(
                 events = events,
                 selectedEvent = selectedEvent,
                 onEventSelected = onEventSelected,
-                onNextStep = onNextStep
+                onNextStep = onNextStep,
+                onValidate = onValidate,
+                onQRScan = { qrContent ->
+                    // Parse le contenu QR: événement|tribune|rang|siège
+                    val parts = qrContent.split("|")
+                    if (parts.size == 4) {
+                        val eventName = parts[0]
+                        val tribune = parts[1]
+                        val rang = parts[2].toIntOrNull()
+                        val siege = parts[3].toIntOrNull()
+                        
+                        if (rang != null && siege != null) {
+                            // Trouver l'événement correspondant dans la liste
+                            val matchingEvent = events.find { it.name == eventName }
+                            
+                            if (matchingEvent != null && matchingEvent.stands.contains(tribune)) {
+                                // Utiliser l'événement réel de l'app
+                                onEventSelected(matchingEvent)
+                                onStandSelected(tribune)
+                                onRowSelected(rang)
+                                onSeatSelected(siege)
+                                
+                                // Déclencher directement la validation (bypass étapes)
+                                onValidate()
+                            }
+                        }
+                    }
+                }
             )
             2 -> TribuneSelectionStep(
                 event = selectedEvent,
@@ -1887,8 +1933,12 @@ fun EventSelectionStep(
     events: List<Event>,
     selectedEvent: Event?,
     onEventSelected: (Event) -> Unit,
-    onNextStep: () -> Unit
+    onNextStep: () -> Unit,
+    onQRScan: (String) -> Unit,
+    onValidate: () -> Unit
 ) {
+    var showQRScanner by remember { mutableStateOf(false) }
+    
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -1911,6 +1961,27 @@ fun EventSelectionStep(
             modifier = Modifier.fillMaxWidth()
         ) {
             Text("Continuer")
+        }
+        
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        // Bouton Scanner QR
+        OutlinedButton(
+            onClick = { showQRScanner = true },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("📷 Scanner QR Code")
+        }
+        
+        // Scanner QR Code
+        if (showQRScanner) {
+            QRCodeScanner(
+                onQRScanned = { scannedData ->
+                    showQRScanner = false
+                    onQRScan(scannedData)
+                },
+                onDismiss = { showQRScanner = false }
+            )
         }
     }
 }
@@ -2180,6 +2251,228 @@ fun NumericKeypad(
     }
 }
 
+
+@Composable
+fun QRCodeScanner(
+    onQRScanned: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val context = LocalContext.current
+    var hasPermission by remember { mutableStateOf(false) }
+    var showPermissionDialog by remember { mutableStateOf(false) }
+    
+    // Launcher pour demander la permission caméra
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        hasPermission = isGranted
+        if (!isGranted) {
+            showPermissionDialog = true
+        }
+    }
+    
+    // Vérifier les permissions au démarrage
+    LaunchedEffect(Unit) {
+        hasPermission = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.CAMERA
+        ) == PackageManager.PERMISSION_GRANTED
+        
+        if (!hasPermission) {
+            permissionLauncher.launch(Manifest.permission.CAMERA)
+        }
+    }
+    
+    if (showPermissionDialog) {
+        AlertDialog(
+            onDismissRequest = onDismiss,
+            title = { Text("Permission Caméra") },
+            text = { Text("L'app a besoin d'accéder à la caméra pour scanner les QR codes. Utilisez le simulateur pour tester.") },
+            confirmButton = {
+                Button(onClick = {
+                    showPermissionDialog = false
+                    hasPermission = false
+                }) {
+                    Text("OK")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = onDismiss) {
+                    Text("Annuler")
+                }
+            }
+        )
+    } else if (hasPermission) {
+        // Caméra réelle
+        CameraQRScanner(
+            onQRScanned = onQRScanned,
+            onDismiss = onDismiss
+        )
+    } else {
+        // Simulateur pour test
+        QRSimulator(
+            onQRScanned = onQRScanned,
+            onDismiss = onDismiss
+        )
+    }
+}
+
+@Composable
+fun CameraQRScanner(
+    onQRScanned: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val cameraExecutor = remember { Executors.newSingleThreadExecutor() }
+    
+    DisposableEffect(Unit) {
+        onDispose {
+            cameraExecutor.shutdown()
+        }
+    }
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Scanner QR Code") },
+        text = {
+            Column {
+                Text("Pointez la caméra vers le QR code de votre siège")
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                // Vue caméra
+                AndroidView(
+                    factory = { context ->
+                        val previewView = PreviewView(context)
+                        val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
+                        
+                        cameraProviderFuture.addListener({
+                            val cameraProvider = cameraProviderFuture.get()
+                            
+                            // Preview
+                            val preview = Preview.Builder().build()
+                            preview.setSurfaceProvider(previewView.surfaceProvider)
+                            
+                            // Image analysis pour QR code
+                            val imageAnalysis = ImageAnalysis.Builder()
+                                .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                                .build()
+                            
+                            imageAnalysis.setAnalyzer(cameraExecutor) { imageProxy ->
+                                processImageProxy(imageProxy, onQRScanned)
+                            }
+                            
+                            // Caméra arrière
+                            val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
+                            
+                            try {
+                                cameraProvider.unbindAll()
+                                cameraProvider.bindToLifecycle(
+                                    lifecycleOwner,
+                                    cameraSelector,
+                                    preview,
+                                    imageAnalysis
+                                )
+                            } catch (exc: Exception) {
+                                Log.e("QRScanner", "Erreur binding caméra", exc)
+                            }
+                            
+                        }, ContextCompat.getMainExecutor(context))
+                        
+                        previewView
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(200.dp)
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Annuler")
+            }
+        }
+    )
+}
+
+@Composable
+fun QRSimulator(
+    onQRScanned: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Scanner QR Code (Simulateur)") },
+        text = {
+            Column {
+                Text("Sélectionnez un siège pour tester:")
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                // Boutons de test pour différents sièges
+                Button(
+                    onClick = { onQRScanned("Stade de foot|Tribune Nord|5|5") },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("⚽ Stade de foot - Tribune Nord - Rang 5 - Siège 5")
+                }
+                
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                Button(
+                    onClick = { onQRScanned("Salle de concert|Balcon|3|8") },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("🎵 Salle de concert - Balcon - Rang 3 - Siège 8")
+                }
+                
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                Button(
+                    onClick = { onQRScanned("Théâtre|Parterre|10|15") },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("🎭 Théâtre - Parterre - Rang 10 - Siège 15")
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Annuler")
+            }
+        }
+    )
+}
+
+private fun processImageProxy(imageProxy: ImageProxy, onQRScanned: (String) -> Unit) {
+    val mediaImage = imageProxy.image
+    if (mediaImage != null) {
+        val image = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
+        
+        val scanner = BarcodeScanning.getClient()
+        scanner.process(image)
+            .addOnSuccessListener { barcodes ->
+                for (barcode in barcodes) {
+                    when (barcode.valueType) {
+                        Barcode.TYPE_TEXT -> {
+                            val rawValue = barcode.rawValue
+                            if (rawValue != null) {
+                                onQRScanned(rawValue)
+                                return@addOnSuccessListener
+                            }
+                        }
+                    }
+                }
+            }
+            .addOnFailureListener { e ->
+                Log.e("QRScanner", "Erreur scan QR", e)
+            }
+            .addOnCompleteListener {
+                imageProxy.close()
+            }
+    } else {
+        imageProxy.close()
+    }
+}
 
 @Composable
 fun PhoneKeypadButton(
@@ -3122,7 +3415,7 @@ fun PackageNotification(
     }
 }
 
-@Preview(showBackground = true)
+@ComposePreview(showBackground = true)
 @Composable
 fun DefaultPreview() {
     MenuEventTheme {
@@ -3139,7 +3432,7 @@ fun DefaultPreview() {
     }
 }
 
-@Preview(showBackground = true)
+@ComposePreview(showBackground = true)
 @Composable
 fun LoadingScreenPreview() {
     MenuEventTheme {
@@ -3147,7 +3440,7 @@ fun LoadingScreenPreview() {
     }
 }
 
-@Preview(showBackground = true)
+@ComposePreview(showBackground = true)
 @Composable
 fun WaitingRoomPreview() {
     MenuEventTheme {
@@ -3171,7 +3464,7 @@ fun WaitingRoomPreview() {
     }
 }
 
-@Preview(showBackground = true)
+@ComposePreview(showBackground = true)
 @Composable
 fun WaitingRoomNoAnimationPreview() {
     MenuEventTheme {
@@ -3189,7 +3482,7 @@ fun WaitingRoomNoAnimationPreview() {
     }
 }
 
-@Preview(showBackground = true)
+@ComposePreview(showBackground = true)
 @Composable
 fun PackageNotificationPreview() {
     MenuEventTheme {
