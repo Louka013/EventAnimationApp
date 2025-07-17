@@ -42,6 +42,12 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.BorderStroke
 
 // Modèles de données simples pour les sélections
 data class Event(val name: String, val stands: List<String>)
@@ -1594,6 +1600,9 @@ fun MainScreen(
     var scheduledAnimation by remember { mutableStateOf<ScheduledAnimation?>(null) }
     val coroutineScope = rememberCoroutineScope()
 
+    // État pour suivre l'étape actuelle de la sélection
+    var currentStep by remember { mutableStateOf(1) }
+
     // Charger la configuration d'animation active au démarrage
     LaunchedEffect(Unit) {
         try {
@@ -1609,12 +1618,6 @@ fun MainScreen(
         }
     }
 
-    // Détermine si le bouton "Valider" doit être activé
-    val isValidationEnabled = selectedEvent != null &&
-            selectedStand != null &&
-            selectedRow != null &&
-            selectedSeat != null
-
     if (isLoading) {
         LoadingScreen()
     } else if (isInWaitingRoom && currentUserSeat != null) {
@@ -1625,132 +1628,635 @@ fun MainScreen(
                 isInWaitingRoom = false
                 currentUserSeat = null
                 scheduledAnimation = null
+                currentStep = 1
+                selectedEvent = null
+                selectedStand = null
+                selectedRow = null
+                selectedSeat = null
             }
         )
     } else {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Text("Sélectionnez votre place", style = MaterialTheme.typography.headlineSmall)
-            
-            // Sélecteur d'événement
-            EventDropdown(
+        StepBasedSeatSelection(
+            events = events,
+            currentStep = currentStep,
+            selectedEvent = selectedEvent,
+            selectedStand = selectedStand,
+            selectedRow = selectedRow,
+            selectedSeat = selectedSeat,
+            onEventSelected = { event ->
+                selectedEvent = event
+                selectedStand = null
+                selectedRow = null
+                selectedSeat = null
+            },
+            onStandSelected = { stand ->
+                selectedStand = stand
+            },
+            onRowSelected = { row ->
+                selectedRow = row
+            },
+            onSeatSelected = { seat ->
+                selectedSeat = seat
+            },
+            onNextStep = { currentStep++ },
+            onPreviousStep = { currentStep-- },
+            onValidate = {
+                isLoading = true
+                coroutineScope.launch {
+                    try {
+                        Log.d("Firebase", "Début de la sauvegarde...")
+                        
+                        // Authentification anonyme
+                        val authResult = auth.signInAnonymously().await()
+                        val userId = authResult.user?.uid ?: ""
+                        Log.d("Firebase", "Authentification réussie, userId: $userId")
+                        
+                        // Préparer les données à sauvegarder
+                        val seatSelection = hashMapOf(
+                            "evenement" to (selectedEvent?.name ?: ""),
+                            "tribune" to (selectedStand ?: ""),
+                            "rang" to (selectedRow ?: 0),
+                            "numeroDePlace" to (selectedSeat ?: 0),
+                            "timestamp" to Timestamp.now(),
+                            "userId" to userId
+                        )
+                        
+                        Log.d("Firebase", "Données préparées: $seatSelection")
+                        
+                        // Sauvegarder dans Firestore
+                        val documentRef = db.collection("seat_selections")
+                            .add(seatSelection)
+                            .await()
+                        
+                        Log.d("Firebase", "Sélection sauvegardée avec succès! ID: ${documentRef.id}")
+                        
+                        // Créer l'objet UserSeat
+                        currentUserSeat = UserSeat(
+                            event = selectedEvent?.name ?: "",
+                            stand = selectedStand ?: "",
+                            row = selectedRow ?: 0,
+                            seat = selectedSeat ?: 0,
+                            userId = userId
+                        )
+                        
+                        // Vérifier s'il y a des animations programmées pour cet événement
+                        val eventTypeForAnimation = when (selectedEvent?.name) {
+                            "Stade de foot" -> "football_stadium"
+                            "Salle de concert" -> "concert_hall"
+                            "Théâtre" -> "theater"
+                            else -> "general"
+                        }
+                        
+                        scheduledAnimation = MainActivity.checkScheduledAnimations(httpClient, eventTypeForAnimation)
+                        
+                        // Naviguer vers la salle d'attente
+                        isInWaitingRoom = true
+                        
+                        Toast.makeText(context, "Sélection sauvegardée! Bienvenue dans la salle d'attente.", Toast.LENGTH_SHORT).show()
+                        
+                    } catch (e: Exception) {
+                        Log.e("Firebase", "Erreur lors de la sauvegarde: ${e.message}", e)
+                        Toast.makeText(context, "Erreur: ${e.message}", Toast.LENGTH_LONG).show()
+                    } finally {
+                        isLoading = false
+                    }
+                }
+            }
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun StepBasedSeatSelection(
+    events: List<Event>,
+    currentStep: Int,
+    selectedEvent: Event?,
+    selectedStand: String?,
+    selectedRow: Int?,
+    selectedSeat: Int?,
+    onEventSelected: (Event) -> Unit,
+    onStandSelected: (String) -> Unit,
+    onRowSelected: (Int) -> Unit,
+    onSeatSelected: (Int) -> Unit,
+    onNextStep: () -> Unit,
+    onPreviousStep: () -> Unit,
+    onValidate: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        // Titre principal
+        Text(
+            text = "Sélection de place",
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold
+        )
+        
+        // Indicateur d'étape
+        Text(
+            text = "Étape $currentStep sur 3",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+        )
+        
+        Spacer(modifier = Modifier.height(8.dp))
+        
+        // Affichage des informations sélectionnées (étapes 2 et 3)
+        if (currentStep >= 2) {
+            SelectedInfoDisplay(
+                selectedEvent = selectedEvent,
+                selectedStand = selectedStand,
+                selectedRow = selectedRow,
+                selectedSeat = selectedSeat,
+                currentStep = currentStep
+            )
+        }
+        
+        // Contenu principal selon l'étape
+        when (currentStep) {
+            1 -> EventSelectionStep(
                 events = events,
                 selectedEvent = selectedEvent,
-                onEventSelected = { event ->
-                    selectedEvent = event
-                    selectedStand = null // Réinitialiser la tribune lors du changement d'événement
-                    // selectedRow = null // Optionnel: réinitialiser aussi rang et place
-                    // selectedSeat = null
-                }
+                onEventSelected = onEventSelected,
+                onNextStep = onNextStep
             )
-
-            // Sélecteur de tribune (n'apparaît que si un événement est sélectionné)
-            selectedEvent?.let { event ->
-                StandDropdown(
-                    stands = event.stands,
-                    selectedStand = selectedStand,
-                    onStandSelected = { stand ->
-                        selectedStand = stand
-                    }
-                )
-            }
-
-            // Sélecteur de rang
-            NumberDropdown(
-                label = "Rang",
-                range = 1..10,
-                selectedValue = selectedRow,
-                onValueSelected = { row ->
-                    selectedRow = row
-                }
+            2 -> TribuneSelectionStep(
+                event = selectedEvent,
+                selectedStand = selectedStand,
+                onStandSelected = onStandSelected,
+                onNextStep = onNextStep,
+                onPreviousStep = onPreviousStep
             )
-
-            // Sélecteur de numéro de place
-            NumberDropdown(
-                label = "Numéro de place",
-                range = 1..10,
-                selectedValue = selectedSeat,
-                onValueSelected = { seat ->
-                    selectedSeat = seat
-                }
+            3 -> RowSeatInputStep(
+                selectedRow = selectedRow,
+                selectedSeat = selectedSeat,
+                onRowSelected = onRowSelected,
+                onSeatSelected = onSeatSelected
             )
+        }
+        
+        Spacer(modifier = Modifier.weight(1f))
+        
+        // Boutons de navigation (seulement pour l'étape 3)
+        if (currentStep == 3) {
+            NavigationButtons(
+                currentStep = currentStep,
+                selectedEvent = selectedEvent,
+                selectedStand = selectedStand,
+                selectedRow = selectedRow,
+                selectedSeat = selectedSeat,
+                onNextStep = onNextStep,
+                onPreviousStep = onPreviousStep,
+                onValidate = onValidate
+            )
+        }
+    }
+}
 
-            Spacer(modifier = Modifier.weight(1f)) // Pour pousser le bouton vers le bas
-
-            Button(
-                onClick = {
-                    isLoading = true
-                    coroutineScope.launch {
-                        try {
-                            Log.d("Firebase", "Début de la sauvegarde...")
-                            
-                            // Authentification anonyme
-                            val authResult = auth.signInAnonymously().await()
-                            val userId = authResult.user?.uid ?: ""
-                            Log.d("Firebase", "Authentification réussie, userId: $userId")
-                            
-                            // Préparer les données à sauvegarder
-                            val seatSelection = hashMapOf(
-                                "evenement" to (selectedEvent?.name ?: ""),
-                                "tribune" to (selectedStand ?: ""),
-                                "rang" to (selectedRow ?: 0),
-                                "numeroDePlace" to (selectedSeat ?: 0),
-                                "timestamp" to Timestamp.now(),
-                                "userId" to userId
-                            )
-                            
-                            Log.d("Firebase", "Données préparées: $seatSelection")
-                            
-                            // Sauvegarder dans Firestore
-                            val documentRef = db.collection("seat_selections")
-                                .add(seatSelection)
-                                .await()
-                            
-                            Log.d("Firebase", "Sélection sauvegardée avec succès! ID: ${documentRef.id}")
-                            
-                            // Créer l'objet UserSeat
-                            currentUserSeat = UserSeat(
-                                event = selectedEvent?.name ?: "",
-                                stand = selectedStand ?: "",
-                                row = selectedRow ?: 0,
-                                seat = selectedSeat ?: 0,
-                                userId = userId
-                            )
-                            
-                            // Vérifier s'il y a des animations programmées pour cet événement
-                            val eventTypeForAnimation = when (selectedEvent?.name) {
-                                "Stade de foot" -> "football_stadium"
-                                "Salle de concert" -> "concert_hall"
-                                "Théâtre" -> "theater"
-                                else -> "general"
-                            }
-                            
-                            scheduledAnimation = MainActivity.checkScheduledAnimations(httpClient, eventTypeForAnimation)
-                            
-                            // Naviguer vers la salle d'attente
-                            isInWaitingRoom = true
-                            
-                            Toast.makeText(context, "Sélection sauvegardée! Bienvenue dans la salle d'attente.", Toast.LENGTH_SHORT).show()
-                            
-                        } catch (e: Exception) {
-                            Log.e("Firebase", "Erreur lors de la sauvegarde: ${e.message}", e)
-                            Toast.makeText(context, "Erreur: ${e.message}", Toast.LENGTH_LONG).show()
-                        } finally {
-                            isLoading = false
-                        }
-                    }
-                },
-                enabled = isValidationEnabled,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Valider")
+@Composable
+fun SelectedInfoDisplay(
+    selectedEvent: Event?,
+    selectedStand: String?,
+    selectedRow: Int?,
+    selectedSeat: Int?,
+    currentStep: Int
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp)
+        ) {
+            Text(
+                text = "Sélection en cours",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onPrimaryContainer
+            )
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            // Événement (toujours affiché à partir de l'étape 2)
+            if (selectedEvent != null) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = "Événement:",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Text(
+                        text = selectedEvent.name,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
             }
             
+            // Tribune (affiché à partir de l'étape 3)
+            if (currentStep >= 3 && selectedStand != null) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = "Tribune:",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Text(
+                        text = selectedStand,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun EventSelectionStep(
+    events: List<Event>,
+    selectedEvent: Event?,
+    onEventSelected: (Event) -> Unit,
+    onNextStep: () -> Unit
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Text(
+            text = "Sélectionnez votre événement",
+            style = MaterialTheme.typography.titleMedium,
+            textAlign = TextAlign.Center
+        )
+        
+        EventDropdown(
+            events = events,
+            selectedEvent = selectedEvent,
+            onEventSelected = onEventSelected
+        )
+        
+        Button(
+            onClick = onNextStep,
+            enabled = selectedEvent != null,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Continuer")
+        }
+    }
+}
+
+@Composable
+fun TribuneSelectionStep(
+    event: Event?,
+    selectedStand: String?,
+    onStandSelected: (String) -> Unit,
+    onNextStep: () -> Unit,
+    onPreviousStep: () -> Unit
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Text(
+            text = "Sélectionnez votre tribune",
+            style = MaterialTheme.typography.titleMedium,
+            textAlign = TextAlign.Center
+        )
+        
+        if (event != null) {
+            StandDropdown(
+                stands = event.stands,
+                selectedStand = selectedStand,
+                onStandSelected = onStandSelected
+            )
+        }
+        
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            OutlinedButton(
+                onClick = onPreviousStep,
+                modifier = Modifier.weight(1f)
+            ) {
+                Text("Retour")
+            }
+            
+            Button(
+                onClick = onNextStep,
+                enabled = selectedStand != null,
+                modifier = Modifier.weight(1f)
+            ) {
+                Text("Continuer")
+            }
+        }
+    }
+}
+
+@Composable
+fun RowSeatInputStep(
+    selectedRow: Int?,
+    selectedSeat: Int?,
+    onRowSelected: (Int) -> Unit,
+    onSeatSelected: (Int) -> Unit
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(24.dp)
+    ) {
+        Text(
+            text = "Saisissez votre place",
+            style = MaterialTheme.typography.titleMedium,
+            textAlign = TextAlign.Center
+        )
+        
+        
+        // Clavier numérique
+        NumericKeypad(
+            onRowSelected = onRowSelected,
+            onSeatSelected = onSeatSelected,
+            selectedRow = selectedRow,
+            selectedSeat = selectedSeat,
+            onRowCardClick = { /* Switch to row input */ },
+            onSeatCardClick = { /* Switch to seat input */ }
+        )
+    }
+}
+
+@Composable
+fun NumericKeypad(
+    onRowSelected: (Int) -> Unit,
+    onSeatSelected: (Int) -> Unit,
+    selectedRow: Int?,
+    selectedSeat: Int?,
+    onRowCardClick: () -> Unit,
+    onSeatCardClick: () -> Unit
+) {
+    var inputMode by remember { mutableStateOf("row") } // "row" ou "seat"
+    var currentInput by remember { mutableStateOf("") } // Pour accumuler les chiffres tapés
+    
+    fun handleDigitClick(digit: String) {
+        when (currentInput.length) {
+            0 -> {
+                // Premier chiffre
+                currentInput = digit
+            }
+            1 -> {
+                // Deuxième chiffre - concaténer avec le premier
+                val newInput = currentInput + digit
+                val value = newInput.toIntOrNull()
+                
+                if (value != null && value in 1..10) {
+                    // Nombre valide, traiter et passer au mode suivant
+                    if (inputMode == "row") {
+                        onRowSelected(value)
+                        inputMode = "seat"
+                        currentInput = "" // Réinitialiser pour la saisie du siège
+                    } else {
+                        onSeatSelected(value)
+                        currentInput = "" // Réinitialiser après sélection du siège
+                        // Optionnel: rester en mode siège pour permettre de changer
+                    }
+                } else {
+                    // Nombre invalide, recommencer avec le nouveau chiffre
+                    currentInput = digit
+                }
+            }
+            else -> {
+                // Recommencer avec le nouveau chiffre
+                currentInput = digit
+            }
+        }
+    }
+    
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        // Affichage des cartes cliquables
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly
+        ) {
+            Card(
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable { 
+                        inputMode = "row"
+                        currentInput = ""
+                        onRowCardClick()
+                    },
+                colors = CardDefaults.cardColors(
+                    containerColor = if (inputMode == "row") MaterialTheme.colorScheme.primaryContainer
+                    else if (selectedRow != null) MaterialTheme.colorScheme.secondaryContainer
+                    else MaterialTheme.colorScheme.surface
+                ),
+                border = if (inputMode == "row") BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "Rang",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = if (inputMode == "row") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = if (inputMode == "row" && currentInput.isNotEmpty()) currentInput 
+                              else selectedRow?.toString() ?: "?",
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = if (inputMode == "row") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            }
+            
+            Spacer(modifier = Modifier.width(16.dp))
+            
+            Card(
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable { 
+                        inputMode = "seat"
+                        currentInput = ""
+                        onSeatCardClick()
+                    },
+                colors = CardDefaults.cardColors(
+                    containerColor = if (inputMode == "seat") MaterialTheme.colorScheme.primaryContainer
+                    else if (selectedSeat != null) MaterialTheme.colorScheme.secondaryContainer
+                    else MaterialTheme.colorScheme.surface
+                ),
+                border = if (inputMode == "seat") BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "Siège",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = if (inputMode == "seat") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = if (inputMode == "seat" && currentInput.isNotEmpty()) currentInput 
+                              else selectedSeat?.toString() ?: "?",
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = if (inputMode == "seat") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            }
+        }
+        
+        // Affichage du mode et de l'entrée en cours
+        Text(
+            text = if (inputMode == "row") "Saisissez le rang (01-10)" else "Saisissez le siège (01-10)",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+        )
+        
+        // Grille de nombres style téléphone
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            // Rangée 7-8-9
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                for (number in 7..9) {
+                    PhoneKeypadButton(
+                        text = number.toString(),
+                        onClick = { handleDigitClick(number.toString()) }
+                    )
+                }
+            }
+            
+            // Rangée 4-5-6
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                for (number in 4..6) {
+                    PhoneKeypadButton(
+                        text = number.toString(),
+                        onClick = { handleDigitClick(number.toString()) }
+                    )
+                }
+            }
+            
+            // Rangée 1-2-3
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                for (number in 1..3) {
+                    PhoneKeypadButton(
+                        text = number.toString(),
+                        onClick = { handleDigitClick(number.toString()) }
+                    )
+                }
+            }
+            
+            // Rangée 0 (seul)
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                PhoneKeypadButton(
+                    text = "0",
+                    onClick = { handleDigitClick("0") }
+                )
+            }
+        }
+    }
+}
+
+
+@Composable
+fun PhoneKeypadButton(
+    text: String,
+    onClick: () -> Unit
+) {
+    Button(
+        onClick = onClick,
+        modifier = Modifier.size(64.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = MaterialTheme.colorScheme.outline,
+            contentColor = MaterialTheme.colorScheme.onSurface
+        ),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold
+        )
+    }
+}
+
+@Composable
+fun NavigationButtons(
+    currentStep: Int,
+    selectedEvent: Event?,
+    selectedStand: String?,
+    selectedRow: Int?,
+    selectedSeat: Int?,
+    onNextStep: () -> Unit,
+    onPreviousStep: () -> Unit,
+    onValidate: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        // Bouton Retour (sauf à l'étape 1)
+        if (currentStep > 1) {
+            OutlinedButton(
+                onClick = onPreviousStep,
+                modifier = Modifier.weight(1f)
+            ) {
+                Text("Retour")
+            }
+        }
+        
+        // Bouton principal
+        when (currentStep) {
+            1 -> {
+                Button(
+                    onClick = onNextStep,
+                    enabled = selectedEvent != null,
+                    modifier = Modifier.weight(if (currentStep > 1) 1f else 1f)
+                ) {
+                    Text("Continuer")
+                }
+            }
+            2 -> {
+                Button(
+                    onClick = onNextStep,
+                    enabled = selectedStand != null,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Continuer")
+                }
+            }
+            3 -> {
+                Button(
+                    onClick = onValidate,
+                    enabled = selectedRow != null && selectedSeat != null,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Valider")
+                }
+            }
         }
     }
 }
