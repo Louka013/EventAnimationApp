@@ -1,10 +1,17 @@
 package com.example.menuevent
 
+import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
 import android.util.Log
+import android.view.View
+import android.view.WindowInsets
+import android.view.WindowInsetsController
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.activity.compose.setContent
 import com.google.firebase.FirebaseApp
 import com.google.firebase.auth.FirebaseAuth
@@ -247,6 +254,9 @@ class MainActivity : ComponentActivity() {
     
     // Wake lock to keep screen on during animations
     private var wakeLock: PowerManager.WakeLock? = null
+    
+    // System UI controller for fullscreen mode
+    private var windowInsetsController: WindowInsetsControllerCompat? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -257,6 +267,10 @@ class MainActivity : ComponentActivity() {
             PowerManager.SCREEN_DIM_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP,
             "MenuEvent::AnimationWakeLock"
         )
+        
+        // Initialize fullscreen/immersive mode
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        windowInsetsController = WindowInsetsControllerCompat(window, window.decorView)
         
         FirebaseApp.initializeApp(this)
         auth = FirebaseAuth.getInstance()
@@ -293,6 +307,9 @@ class MainActivity : ComponentActivity() {
                 Log.d("MainActivity", "Wake lock acquired - screen will stay on")
             }
         }
+        
+        // Hide system UI for immersive fullscreen experience
+        hideSystemUI()
     }
     
     override fun onPause() {
@@ -304,6 +321,9 @@ class MainActivity : ComponentActivity() {
                 Log.d("MainActivity", "Wake lock released - screen can turn off")
             }
         }
+        
+        // Show system UI when app goes to background
+        showSystemUI()
     }
     
     override fun onDestroy() {
@@ -316,9 +336,86 @@ class MainActivity : ComponentActivity() {
             }
         }
         
+        // Ensure system UI is shown when app is destroyed
+        showSystemUI()
+        
         // Cleanup time synchronization
         timeSyncManager.cleanup()
         Log.d("MainActivity", "Time synchronization cleaned up")
+    }
+    
+    /**
+     * Hide system UI (status bar, navigation bar) for immersive fullscreen experience
+     */
+    private fun hideSystemUI() {
+        windowInsetsController?.let { controller ->
+            // Hide status bar and navigation bar
+            controller.hide(WindowInsetsCompat.Type.systemBars())
+            
+            // Set behavior for when system UI is shown by user gesture
+            controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            
+            Log.d("MainActivity", "System UI hidden - immersive mode enabled")
+        } ?: run {
+            // Fallback for older Android versions
+            hideSystemUILegacy()
+        }
+    }
+    
+    /**
+     * Show system UI (status bar, navigation bar) for normal display
+     */
+    private fun showSystemUI() {
+        windowInsetsController?.let { controller ->
+            // Show status bar and navigation bar
+            controller.show(WindowInsetsCompat.Type.systemBars())
+            
+            Log.d("MainActivity", "System UI shown - immersive mode disabled")
+        } ?: run {
+            // Fallback for older Android versions
+            showSystemUILegacy()
+        }
+    }
+    
+    /**
+     * Legacy method to hide system UI for older Android versions
+     */
+    @Suppress("DEPRECATION")
+    private fun hideSystemUILegacy() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            // Modern approach handled by WindowInsetsController
+            return
+        }
+        
+        window.decorView.systemUiVisibility = (
+            View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+            or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+            or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+            or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+            or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+            or View.SYSTEM_UI_FLAG_FULLSCREEN
+        )
+        
+        Log.d("MainActivity", "System UI hidden - legacy immersive mode enabled")
+    }
+    
+    /**
+     * Legacy method to show system UI for older Android versions
+     */
+    @Suppress("DEPRECATION")
+    private fun showSystemUILegacy() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            // Modern approach handled by WindowInsetsController
+            return
+        }
+        
+        window.decorView.systemUiVisibility = (
+            View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+            or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+            or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+        )
+        
+        Log.d("MainActivity", "System UI shown - legacy immersive mode disabled")
     }
 
     // Fonction pour récupérer la configuration d'animation active
