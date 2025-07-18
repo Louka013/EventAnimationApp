@@ -1,4 +1,4 @@
-package com.example.menuevent
+package com.example.eventanimationapp
 
 import org.junit.Test
 

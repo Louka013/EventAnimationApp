@@ -19,6 +19,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "menuEvent"
+rootProject.name = "EventAnimationApp"
 include(":app")
  

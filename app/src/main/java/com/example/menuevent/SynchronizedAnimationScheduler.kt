@@ -1,4 +1,4 @@
-package com.example.menuevent
+package com.example.eventanimationapp
 
 import android.os.Handler
 import android.os.Looper

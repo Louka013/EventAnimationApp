@@ -1,4 +1,4 @@
-package com.example.menuevent.ui.theme
+package com.example.eventanimationapp.ui.theme
 
 import androidx.compose.ui.graphics.Color
 

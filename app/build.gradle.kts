@@ -6,11 +6,11 @@ plugins {
 }
 
 android {
-    namespace = "com.example.menuevent"
+    namespace = "com.example.eventanimationapp"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.example.menuevent"
+        applicationId = "com.example.eventanimationapp"
         minSdk = 24
         targetSdk = 35
         versionCode = 1

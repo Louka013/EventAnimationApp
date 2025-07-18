@@ -1,4 +1,4 @@
-package com.example.menuevent
+package com.example.eventanimationapp
 
 import android.util.Log
 import com.google.firebase.database.DataSnapshot

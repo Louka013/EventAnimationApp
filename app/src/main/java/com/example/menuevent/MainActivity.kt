@@ -1,4 +1,4 @@
-package com.example.menuevent
+package com.example.eventanimationapp
 
 import android.os.Build
 import android.os.Bundle
@@ -26,7 +26,7 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
-import com.example.menuevent.ui.theme.MenuEventTheme
+import com.example.eventanimationapp.ui.theme.EventAnimationAppTheme
 import kotlinx.coroutines.tasks.await
 import com.google.firebase.Timestamp
 import android.content.Context
@@ -281,7 +281,7 @@ class MainActivity : ComponentActivity() {
         Log.d("MainActivity", "Time synchronization initialized: ${timeSyncManager.getSyncStatus()}")
         
         setContent {
-            MenuEventTheme {
+            EventAnimationAppTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
@@ -3548,7 +3548,7 @@ fun PackageNotification(
 @ComposePreview(showBackground = true)
 @Composable
 fun DefaultPreview() {
-    MenuEventTheme {
+    EventAnimationAppTheme {
         MainScreen(
             events = listOf(
                 Event("Stade de foot", listOf("Nord", "Sud")),
@@ -3565,7 +3565,7 @@ fun DefaultPreview() {
 @ComposePreview(showBackground = true)
 @Composable
 fun LoadingScreenPreview() {
-    MenuEventTheme {
+    EventAnimationAppTheme {
         LoadingScreen()
     }
 }
@@ -3573,7 +3573,7 @@ fun LoadingScreenPreview() {
 @ComposePreview(showBackground = true)
 @Composable
 fun WaitingRoomPreview() {
-    MenuEventTheme {
+    EventAnimationAppTheme {
         WaitingRoomScreen(
             userSeat = UserSeat(
                 event = "Stade de foot",
@@ -3597,7 +3597,7 @@ fun WaitingRoomPreview() {
 @ComposePreview(showBackground = true)
 @Composable
 fun WaitingRoomNoAnimationPreview() {
-    MenuEventTheme {
+    EventAnimationAppTheme {
         WaitingRoomScreen(
             userSeat = UserSeat(
                 event = "Théâtre",
@@ -3615,7 +3615,7 @@ fun WaitingRoomNoAnimationPreview() {
 @ComposePreview(showBackground = true)
 @Composable
 fun PackageNotificationPreview() {
-    MenuEventTheme {
+    EventAnimationAppTheme {
         Column(
             modifier = Modifier
                 .fillMaxSize()
