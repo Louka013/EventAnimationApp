@@ -1,6 +1,7 @@
 package com.example.menuevent
 
 import android.os.Bundle
+import android.os.PowerManager
 import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -243,9 +244,19 @@ class MainActivity : ComponentActivity() {
     // Time synchronization components
     private val timeSyncManager = TimeSynchronizationManager.getInstance()
     private val syncAnimationScheduler = SynchronizedAnimationScheduler()
+    
+    // Wake lock to keep screen on during animations
+    private var wakeLock: PowerManager.WakeLock? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        // Initialize wake lock to keep screen on during animations
+        val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
+        wakeLock = powerManager.newWakeLock(
+            PowerManager.SCREEN_DIM_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP,
+            "MenuEvent::AnimationWakeLock"
+        )
         
         FirebaseApp.initializeApp(this)
         auth = FirebaseAuth.getInstance()
@@ -273,8 +284,38 @@ class MainActivity : ComponentActivity() {
         }
     }
     
+    override fun onResume() {
+        super.onResume()
+        // Acquire wake lock to keep screen on
+        wakeLock?.let { wl ->
+            if (!wl.isHeld) {
+                wl.acquire()
+                Log.d("MainActivity", "Wake lock acquired - screen will stay on")
+            }
+        }
+    }
+    
+    override fun onPause() {
+        super.onPause()
+        // Release wake lock when app goes to background
+        wakeLock?.let { wl ->
+            if (wl.isHeld) {
+                wl.release()
+                Log.d("MainActivity", "Wake lock released - screen can turn off")
+            }
+        }
+    }
+    
     override fun onDestroy() {
         super.onDestroy()
+        // Release wake lock if still held
+        wakeLock?.let { wl ->
+            if (wl.isHeld) {
+                wl.release()
+                Log.d("MainActivity", "Wake lock released on destroy")
+            }
+        }
+        
         // Cleanup time synchronization
         timeSyncManager.cleanup()
         Log.d("MainActivity", "Time synchronization cleaned up")
@@ -2131,7 +2172,7 @@ fun NumericKeypad(
                     )
                     Text(
                         text = if (inputMode == "row" && currentInput.isNotEmpty()) currentInput 
-                              else selectedRow?.toString() ?: "?",
+                              else selectedRow?.let { "%02d".format(it) } ?: "?",
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold,
                         color = if (inputMode == "row") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
@@ -2167,7 +2208,7 @@ fun NumericKeypad(
                     )
                     Text(
                         text = if (inputMode == "seat" && currentInput.isNotEmpty()) currentInput 
-                              else selectedSeat?.toString() ?: "?",
+                              else selectedSeat?.let { "%02d".format(it) } ?: "?",
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold,
                         color = if (inputMode == "seat") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
@@ -3136,7 +3177,7 @@ fun WaitingRoomScreen(
                     style = MaterialTheme.typography.bodyLarge
                 )
                 Text(
-                    text = "Rang: ${userSeat.row} | Place: ${userSeat.seat}",
+                    text = "Rang: %02d | Place: %02d".format(userSeat.row, userSeat.seat),
                     style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.Medium
                 )
