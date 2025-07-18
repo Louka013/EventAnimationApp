@@ -2844,7 +2844,7 @@ fun WaitingRoomScreen(
     var animationStatus by remember { mutableStateOf("Chargement des frames...") }
     var currentColor by remember { mutableStateOf(Color.Black) }
     var framesListener by remember { mutableStateOf<com.google.firebase.firestore.ListenerRegistration?>(null) }
-    // scheduledListener removed - no animation scheduling in waiting room setup
+    var scheduledListener by remember { mutableStateOf<com.google.firebase.firestore.ListenerRegistration?>(null) }
     // État pour l'animation en temps réel
     var currentAnimation by remember { mutableStateOf(scheduledAnimation) }
     var isListening by remember { mutableStateOf(false) }
@@ -3027,18 +3027,61 @@ fun WaitingRoomScreen(
         // Load user animation package
         loadUserAnimationPackage()
         
-        // DO NOT set up scheduled animation listener here
-        // Animation scheduling should only happen when explicitly triggered by admin
-        // Users should only receive packages in waiting room, not start animations
-        Log.d("WaitingRoomScreen", "📦 Waiting room setup complete - package loading only")
+        // Set up animation playback listeners for all animation types
+        // This allows animations to be displayed when triggered by admin
+        val animationListeners = mutableListOf<com.google.firebase.firestore.ListenerRegistration>()
+        
+        // Create listeners for all animation types
+        animationTypes.forEach { animationType ->
+            val listener = MainActivity.loadAndPlayAnimation(
+                animationId = animationType,
+                row = userSeat.row,
+                col = userSeat.seat,
+                onAnimationLoaded = { id, frameCount ->
+                    animationStatus = "Animation prête: $id ($frameCount frames)"
+                    Log.d("WaitingRoomScreen", "🎨 Animation loaded: $id with $frameCount frames")
+                },
+                onAnimationStart = { id ->
+                    animationStatus = "Animation en cours: $id"
+                    isAnimationFullScreen = true
+                    Log.d("WaitingRoomScreen", "🎨 Animation started: $id")
+                },
+                onAnimationFrame = { frameIndex, colorFrame ->
+                    // Update the current color to display the animation frame
+                    currentColor = Color(
+                        red = colorFrame.r / 255f,
+                        green = colorFrame.g / 255f,
+                        blue = colorFrame.b / 255f
+                    )
+                    Log.d("WaitingRoomScreen", "🎨 Animation frame $frameIndex: RGB(${colorFrame.r}, ${colorFrame.g}, ${colorFrame.b})")
+                },
+                onAnimationEnd = { id ->
+                    animationStatus = "Animation terminée: $id"
+                    isAnimationFullScreen = false
+                    currentColor = Color.Black
+                    Log.d("WaitingRoomScreen", "🎨 Animation ended: $id")
+                },
+                onAnimationError = { error ->
+                    Log.e("WaitingRoomScreen", "🎨 Animation error for $animationType: $error")
+                }
+            )
+            
+            listener?.let { animationListeners.add(it) }
+        }
+        
+        // Store the first listener for backward compatibility
+        scheduledListener = animationListeners.firstOrNull()
+        
+        Log.d("WaitingRoomScreen", "📦 Waiting room setup complete - package loading AND animation playback enabled")
     }
     
     // Cleanup listeners on dispose
     DisposableEffect(userSeat) {
         onDispose {
-            Log.d("WaitingRoomScreen", "📦 Cleaning up animation frames listener")
+            Log.d("WaitingRoomScreen", "📦 Cleaning up animation listeners")
             framesListener?.remove()
-            // scheduledListener not used in waiting room setup
+            scheduledListener?.remove()
+            // Note: All animation listeners are cleaned up automatically when the Firebase document listeners are removed
         }
     }
     

@@ -60,8 +60,32 @@ class SynchronizedAnimationScheduler {
                 
                 when {
                     delayMs <= 0 -> {
-                        Log.w(TAG, "Animation start time has passed, skipping")
-                        onAnimationError("Animation start time has passed")
+                        // Allow animation to start if it's only slightly late (normal network/sync delays)
+                        // But prevent it if it's too old (user just entered waiting room)
+                        if (delayMs > -10000) { // Allow up to 10 seconds of lateness
+                            Log.w(TAG, "Animation start time has passed recently (${delayMs}ms), starting immediately")
+                            // Start animation immediately using precise timing
+                            scope.launch {
+                                onAnimationStart()
+                                val frameDelayMs = (1000.0 / frameRate).toLong()
+                                for ((index, color) in colors.withIndex()) {
+                                    val frameStartTime = System.currentTimeMillis()
+                                    onAnimationFrame(color)
+                                    if (index < colors.size - 1) {
+                                        val frameEndTime = System.currentTimeMillis()
+                                        val processingTime = frameEndTime - frameStartTime
+                                        val remainingDelay = maxOf(0, frameDelayMs - processingTime)
+                                        if (remainingDelay > 0) {
+                                            delay(remainingDelay)
+                                        }
+                                    }
+                                }
+                                onAnimationEnd()
+                            }
+                        } else {
+                            Log.w(TAG, "Animation start time has passed too long ago (${delayMs}ms), waiting for next scheduled start time")
+                            onAnimationError("Animation start time has passed, waiting for next scheduled start time")
+                        }
                     }
                     delayMs > FALLBACK_SYNC_THRESHOLD && timeSync.accuracy == TimeSyncAccuracy.LOW -> {
                         Log.w(TAG, "Using fallback timing due to poor synchronization")
@@ -182,8 +206,15 @@ class SynchronizedAnimationScheduler {
             Log.d(TAG, "  - Sync status: ${timeSyncManager.getSyncStatus()}")
             
             if (delayMs <= 0) {
-                Log.w(TAG, "Animation start time has passed, playing immediately")
-                playAnimationFrames(colors, frameRate, onAnimationStart, onAnimationFrame, onAnimationEnd)
+                // Allow animation to start if it's only slightly late (normal network/sync delays)
+                // But prevent it if it's too old (user just entered waiting room)
+                if (delayMs > -10000) { // Allow up to 10 seconds of lateness
+                    Log.w(TAG, "Animation start time has passed recently (${delayMs}ms), starting immediately")
+                    playAnimationFrames(colors, frameRate, onAnimationStart, onAnimationFrame, onAnimationEnd)
+                } else {
+                    Log.w(TAG, "Animation start time has passed too long ago (${delayMs}ms), waiting for next scheduled start time")
+                    onAnimationError("Animation start time has passed, waiting for next scheduled start time")
+                }
             } else {
                 // Schedule using Handler
                 handler.postDelayed({
