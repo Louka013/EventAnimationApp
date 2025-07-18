@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Firebase Connection</title>
+</head>
+<body>
+    <h1>Test Firebase Connection</h1>
+    <button onclick="testFirebaseConnection()">Test Connection</button>
+    <button onclick="addTestData()">Add Test Data</button>
+    <button onclick="readTestData()">Read Test Data</button>
+    <div id="results"></div>
+
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
+        import { getFirestore, collection, addDoc, getDocs, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyAWGEHQK8f61d4OCgreDRu0fXUjt_sG14w",
+            authDomain: "data-base-test-6ef5f.firebaseapp.com",
+            projectId: "data-base-test-6ef5f",
+            storageBucket: "data-base-test-6ef5f.firebasestorage.app",
+            messagingSenderId: "131672469882",
+            appId: "1:131672469882:web:5362c975813f74955be6c3"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        window.testFirebaseConnection = async function() {
+            const resultsDiv = document.getElementById('results');
+            try {
+                resultsDiv.innerHTML = '<p>Testing Firebase connection...</p>';
+                const testCol = collection(db, 'test');
+                const snapshot = await getDocs(testCol);
+                resultsDiv.innerHTML = '<p>✅ Firebase connection successful!</p>';
+                console.log('Firebase connection successful');
+            } catch (error) {
+                resultsDiv.innerHTML = `<p>❌ Firebase connection failed: ${error.message}</p>`;
+                console.error('Firebase connection failed:', error);
+            }
+        };
+
+        window.addTestData = async function() {
+            const resultsDiv = document.getElementById('results');
+            try {
+                resultsDiv.innerHTML = '<p>Adding test animation config...</p>';
+                
+                const testConfig = {
+                    animationStartTime: "2024-01-15T20:30",
+                    eventType: "football_stadium",
+                    animationType: "blue_black_flash",
+                    animationData: {
+                        animationId: "blue_black_flash",
+                        frameRate: 2,
+                        frameCount: 20,
+                        users: {
+                            "user_1_1": {
+                                frames: ["frame1.png", "frame2.png"]
+                            }
+                        }
+                    },
+                    createdAt: serverTimestamp(),
+                    status: 'active'
+                };
+
+                const docRef = await addDoc(collection(db, 'animation_configs'), testConfig);
+                resultsDiv.innerHTML = `<p>✅ Test config added with ID: ${docRef.id}</p>`;
+                console.log('Test config added:', docRef.id);
+            } catch (error) {
+                resultsDiv.innerHTML = `<p>❌ Failed to add test config: ${error.message}</p>`;
+                console.error('Failed to add test config:', error);
+            }
+        };
+
+        window.readTestData = async function() {
+            const resultsDiv = document.getElementById('results');
+            try {
+                resultsDiv.innerHTML = '<p>Reading animation configs...</p>';
+                
+                const snapshot = await getDocs(collection(db, 'animation_configs'));
+                const configs = [];
+                snapshot.forEach((doc) => {
+                    configs.push({ id: doc.id, ...doc.data() });
+                });
+
+                resultsDiv.innerHTML = `<p>✅ Found ${configs.length} configs:</p><pre>${JSON.stringify(configs, null, 2)}</pre>`;
+                console.log('Animation configs:', configs);
+            } catch (error) {
+                resultsDiv.innerHTML = `<p>❌ Failed to read configs: ${error.message}</p>`;
+                console.error('Failed to read configs:', error);
+            }
+        };
+    </script>
+</body>
+</html>

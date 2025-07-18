@@ -1,0 +1,45 @@
+{
+  "firebase": {
+    "project_id": "data-base-test-6ef5f",
+    "storage_bucket": "data-base-test-6ef5f.firebasestorage.app",
+    "service_account_key": null
+  },
+  "animations": {
+    "blue_black_flash": {
+      "frame_rate": 2,
+      "frame_count": 20,
+      "duration_seconds": 10.0,
+      "pattern": "color_flash",
+      "description": "Blue and black alternating flash effect"
+    },
+    "checkboard_flash": {
+      "frame_rate": 2,
+      "frame_count": 20,
+      "duration_seconds": 10.0,
+      "pattern": "color_flash",
+      "description": "Checkboard pattern with red flash for odd seats, blue flash for even seats, alternating with black"
+    }
+  },
+  "grid": {
+    "default_rows": 10,
+    "default_cols": 10,
+    "max_rows": 10,
+    "max_cols": 10,
+    "stadium_layouts": {
+      "small": {"rows": 10, "cols": 10},
+      "medium": {"rows": 10, "cols": 10},
+      "large": {"rows": 10, "cols": 10},
+      "mega": {"rows": 10, "cols": 10}
+    }
+  },
+  "output": {
+    "base_path": "./animations",
+    "json_path": "./user_animations",
+    "url_template": "https://firebasestorage.googleapis.com/v0/b/{bucket}/o/animations/{animation}/{row}_{col}/frame_{frame:03d}.png"
+  },
+  "synchronization": {
+    "default_delay_minutes": 5,
+    "max_delay_minutes": 60,
+    "timezone": "Europe/Paris"
+  }
+}

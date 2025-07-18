@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ConfigUser - Configuration des Animations</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            padding: 40px;
+            width: 100%;
+            max-width: 600px;
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+        }
+
+        .form-group {
+            margin-bottom: 25px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+            font-weight: bold;
+            font-size: 1.1em;
+        }
+
+        select, input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 1em;
+            background: white;
+            transition: border-color 0.3s;
+            font-family: monospace;
+        }
+
+        /* Time input specific styling */
+        input[type="text"]#animationStartTime {
+            text-align: center;
+            font-size: 1.2em;
+            letter-spacing: 1px;
+        }
+
+        input[type="text"]#animationStartTime:invalid {
+            border-color: #dc3545;
+            background-color: #fff5f5;
+        }
+
+        input[type="text"]#animationStartTime:valid {
+            border-color: #28a745;
+            background-color: #f8fff8;
+        }
+
+        select:focus, input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .btn {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1.2em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        .loading.show {
+            display: block;
+        }
+
+        .message {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            font-weight: bold;
+        }
+
+        .message.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .message.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .preview {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 20px;
+        }
+
+        .preview h3 {
+            color: #495057;
+            margin-bottom: 10px;
+        }
+
+        .preview p {
+            color: #6c757d;
+            margin: 5px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎭 Configuration des Animations</h1>
+        
+        <form id="configForm">
+            <div class="form-group">
+                <label for="animationStartTime">⏰ Heure de début de l'animation</label>
+                <input type="text" id="animationStartTime" name="animationStartTime" pattern="^([0-1]?[0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$" placeholder="Tapez 6 chiffres (ex: 145020 → 14:50:20)" maxlength="8" required>
+                <small style="color: #666; font-size: 0.9em;">Tapez 6 chiffres consécutifs (ex: 145020 devient 14:50:20)</small>
+            </div>
+
+            <div class="form-group">
+                <label for="eventType">🏟️ Type d'événement</label>
+                <select id="eventType" name="eventType" required>
+                    <option value="">Sélectionnez un type d'événement</option>
+                    <option value="football_stadium">🏈 Stade de Football</option>
+                    <option value="concert_hall">🎵 Salle de Concert</option>
+                    <option value="theater">🎭 Théâtre</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="animationType">✨ Type d'animation</label>
+                <select id="animationType" name="animationType" required>
+                    <option value="">Sélectionnez un type d'animation</option>
+                    <option value="blue_black_flash">⚡ Flash Bleu/Noir</option>
+                    <option value="checkboard_flash">🏁 Flash Damier (Rouge/Bleu)</option>
+                </select>
+            </div>
+
+            <div class="preview" id="configPreview" style="display: none;">
+                <h3>📋 Aperçu de la configuration</h3>
+                <p><strong>Heure de début:</strong> <span id="previewTime"></span></p>
+                <p><strong>Événement:</strong> <span id="previewEvent"></span></p>
+                <p><strong>Animation:</strong> <span id="previewAnimation"></span></p>
+            </div>
+
+            <button type="submit" class="btn" id="submitBtn">
+                💾 Sauvegarder la Configuration
+            </button>
+        </form>
+
+        <div class="loading" id="loading">
+            <p>⏳ Sauvegarde en cours...</p>
+        </div>
+
+        <div id="message"></div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
+        import { getFirestore, collection, addDoc, serverTimestamp, doc, setDoc, query, where, getDocs, updateDoc } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+        import { getStorage, ref, uploadString, getDownloadURL } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js';
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyAWGEHQK8f61d4OCgreDRu0fXUjt_sG14w",
+            authDomain: "data-base-test-6ef5f.firebaseapp.com",
+            projectId: "data-base-test-6ef5f",
+            storageBucket: "data-base-test-6ef5f.firebasestorage.app",
+            messagingSenderId: "131672469882",
+            appId: "1:131672469882:web:5362c975813f74955be6c3"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const storage = getStorage(app);
+
+        // Animation data - Available animations
+        const animationData = {
+            blue_black_flash: {
+                animationId: "blue_black_flash",
+                frameRate: 2,
+                frameCount: 20,
+                type: "color_animation",
+                users: {
+                    "user_1_1": {
+                        colors: [
+                            {r: 0, g: 0, b: 255}, {r: 0, g: 0, b: 0}, {r: 0, g: 0, b: 255}, {r: 0, g: 0, b: 0},
+                            {r: 0, g: 0, b: 255}, {r: 0, g: 0, b: 0}, {r: 0, g: 0, b: 255}, {r: 0, g: 0, b: 0},
+                            {r: 0, g: 0, b: 255}, {r: 0, g: 0, b: 0}, {r: 0, g: 0, b: 255}, {r: 0, g: 0, b: 0},
+                            {r: 0, g: 0, b: 255}, {r: 0, g: 0, b: 0}, {r: 0, g: 0, b: 255}, {r: 0, g: 0, b: 0},
+                            {r: 0, g: 0, b: 255}, {r: 0, g: 0, b: 0}, {r: 0, g: 0, b: 255}, {r: 0, g: 0, b: 0}
+                        ]
+                    }
+                }
+            },
+            checkboard_flash: {
+                animationId: "checkboard_flash",
+                frameRate: 2,
+                frameCount: 20,
+                type: "color_animation",
+                users: {
+                    "user_1_1": {
+                        colors: [
+                            {r: 255, g: 0, b: 0}, {r: 0, g: 0, b: 0}, {r: 255, g: 0, b: 0}, {r: 0, g: 0, b: 0},
+                            {r: 255, g: 0, b: 0}, {r: 0, g: 0, b: 0}, {r: 255, g: 0, b: 0}, {r: 0, g: 0, b: 0},
+                            {r: 255, g: 0, b: 0}, {r: 0, g: 0, b: 0}, {r: 255, g: 0, b: 0}, {r: 0, g: 0, b: 0},
+                            {r: 255, g: 0, b: 0}, {r: 0, g: 0, b: 0}, {r: 255, g: 0, b: 0}, {r: 0, g: 0, b: 0},
+                            {r: 255, g: 0, b: 0}, {r: 0, g: 0, b: 0}, {r: 255, g: 0, b: 0}, {r: 0, g: 0, b: 0}
+                        ]
+                    },
+                    "user_1_2": {
+                        colors: [
+                            {r: 0, g: 0, b: 255}, {r: 0, g: 0, b: 0}, {r: 0, g: 0, b: 255}, {r: 0, g: 0, b: 0},
+                            {r: 0, g: 0, b: 255}, {r: 0, g: 0, b: 0}, {r: 0, g: 0, b: 255}, {r: 0, g: 0, b: 0},
+                            {r: 0, g: 0, b: 255}, {r: 0, g: 0, b: 0}, {r: 0, g: 0, b: 255}, {r: 0, g: 0, b: 0},
+                            {r: 0, g: 0, b: 255}, {r: 0, g: 0, b: 0}, {r: 0, g: 0, b: 255}, {r: 0, g: 0, b: 0},
+                            {r: 0, g: 0, b: 255}, {r: 0, g: 0, b: 0}, {r: 0, g: 0, b: 255}, {r: 0, g: 0, b: 0}
+                        ]
+                    }
+                }
+            }
+        };
+
+        const form = document.getElementById('configForm');
+        const submitBtn = document.getElementById('submitBtn');
+        const loading = document.getElementById('loading');
+        const messageDiv = document.getElementById('message');
+        const preview = document.getElementById('configPreview');
+
+        const eventTypeSelect = document.getElementById('eventType');
+        const animationTypeSelect = document.getElementById('animationType');
+        const timeInput = document.getElementById('animationStartTime');
+
+        function updatePreview() {
+            const eventType = eventTypeSelect.value;
+            const animationType = animationTypeSelect.value;
+            const time = timeInput.value;
+
+            if (eventType && animationType && time) {
+                const eventText = eventTypeSelect.options[eventTypeSelect.selectedIndex].text;
+                const animationText = animationTypeSelect.options[animationTypeSelect.selectedIndex].text;
+                
+                // Validate and convert time-only input to full datetime for preview
+                const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$/;
+                if (!timeRegex.test(time)) {
+                    preview.style.display = 'none';
+                    return;
+                }
+                
+                // Create datetime string directly without timezone conversion for preview
+                const [hours, minutes, seconds] = time.split(':');
+                
+                // Get today's date for preview
+                const today = new Date();
+                const currentHour = today.getHours();
+                const currentMinute = today.getMinutes();
+                const currentSecond = today.getSeconds();
+                
+                // Check if entered time has already passed today
+                const enteredTime = parseInt(hours, 10) * 3600 + parseInt(minutes, 10) * 60 + parseInt(seconds, 10);
+                const currentTime = currentHour * 3600 + currentMinute * 60 + currentSecond;
+                
+                // If time has passed, use tomorrow's date
+                const targetDate = new Date(today);
+                if (enteredTime <= currentTime) {
+                    targetDate.setDate(targetDate.getDate() + 1);
+                }
+                
+                // Create a proper Date object for formatting
+                const targetTime = new Date(targetDate);
+                targetTime.setHours(parseInt(hours, 10), parseInt(minutes, 10), parseInt(seconds, 10), 0);
+                
+                const formattedTime = targetTime.toLocaleString('fr-FR', {
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                    hour12: false
+                });
+
+                document.getElementById('previewTime').textContent = formattedTime;
+                document.getElementById('previewEvent').textContent = eventText;
+                document.getElementById('previewAnimation').textContent = animationText;
+                
+                preview.style.display = 'block';
+            } else {
+                preview.style.display = 'none';
+            }
+        }
+
+        eventTypeSelect.addEventListener('change', updatePreview);
+        animationTypeSelect.addEventListener('change', updatePreview);
+        timeInput.addEventListener('change', updatePreview);
+
+        // Add auto-formatting for 6-digit input
+        timeInput.addEventListener('input', function(e) {
+            let value = e.target.value;
+            
+            // Remove all non-digit characters
+            const digitsOnly = value.replace(/\D/g, '');
+            
+            // If we have 6 digits, format as HH:MM:SS
+            if (digitsOnly.length === 6) {
+                const formatted = digitsOnly.substring(0, 2) + ':' + 
+                                  digitsOnly.substring(2, 4) + ':' + 
+                                  digitsOnly.substring(4, 6);
+                e.target.value = formatted;
+                value = formatted;
+            }
+            // If we have less than 6 digits, show them as typed
+            else if (digitsOnly.length > 0 && digitsOnly.length < 6) {
+                e.target.value = digitsOnly;
+                value = digitsOnly;
+            }
+            // If empty, clear
+            else if (digitsOnly.length === 0) {
+                e.target.value = '';
+                value = '';
+            }
+            
+            // Validate final formatted time
+            const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$/;
+            
+            if (value && timeRegex.test(value)) {
+                // Additional validation for hours, minutes, seconds
+                const [hours, minutes, seconds] = value.split(':');
+                if (parseInt(hours, 10) > 23 || parseInt(minutes, 10) > 59 || parseInt(seconds, 10) > 59) {
+                    e.target.setCustomValidity('Heure invalide. Heures: 00-23, Minutes/Secondes: 00-59');
+                } else {
+                    e.target.setCustomValidity('');
+                }
+            } else if (value && !timeRegex.test(value) && digitsOnly.length === 6) {
+                e.target.setCustomValidity('Heure invalide. Heures: 00-23, Minutes/Secondes: 00-59');
+            } else if (value && digitsOnly.length < 6) {
+                e.target.setCustomValidity('Tapez 6 chiffres (ex: 145020 pour 14:50:20)');
+            } else {
+                e.target.setCustomValidity('');
+            }
+        });
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = new FormData(form);
+            const animationType = formData.get('animationType');
+            const eventType = formData.get('eventType');
+            const timeOnly = formData.get('animationStartTime');
+            const selectedAnimation = animationData[animationType];
+            
+            if (!selectedAnimation) {
+                messageDiv.innerHTML = `
+                    <div class="message error">
+                        ❌ Type d'animation non valide
+                    </div>
+                `;
+                return;
+            }
+
+            // Validate time format before processing
+            const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$/;
+            if (!timeRegex.test(timeOnly)) {
+                messageDiv.innerHTML = `
+                    <div class="message error">
+                        ❌ Format d'heure invalide. Utilisez HH:MM:SS (ex: 14:30:00)
+                    </div>
+                `;
+                return;
+            }
+
+            // Create datetime string directly without timezone conversion
+            const [hours, minutes, seconds] = timeOnly.split(':');
+            
+            // Get today's date in YYYY-MM-DD format (local date)
+            const today = new Date();
+            const currentHour = today.getHours();
+            const currentMinute = today.getMinutes();
+            const currentSecond = today.getSeconds();
+            
+            // Check if entered time has already passed today
+            const enteredTime = parseInt(hours, 10) * 3600 + parseInt(minutes, 10) * 60 + parseInt(seconds, 10);
+            const currentTime = currentHour * 3600 + currentMinute * 60 + currentSecond;
+            
+            // If time has passed, use tomorrow's date
+            const targetDate = new Date(today);
+            if (enteredTime <= currentTime) {
+                targetDate.setDate(targetDate.getDate() + 1);
+            }
+            
+            // Format date as YYYY-MM-DD
+            const year = targetDate.getFullYear();
+            const month = String(targetDate.getMonth() + 1).padStart(2, '0');
+            const day = String(targetDate.getDate()).padStart(2, '0');
+            
+            // Create datetime string directly (no timezone conversion)
+            const fullDateTime = `${year}-${month}-${day}T${hours.padStart(2, '0')}:${minutes.padStart(2, '0')}:${seconds.padStart(2, '0')}`;
+
+            const config = {
+                animationStartTime: fullDateTime,
+                eventType: eventType,
+                animationType: animationType,
+                animationData: selectedAnimation,
+                createdAt: serverTimestamp(),
+                status: 'active'
+            };
+
+            try {
+                submitBtn.disabled = true;
+                loading.classList.add('show');
+                messageDiv.innerHTML = '';
+
+                // First, find and deactivate any existing active animations for this event type
+                const existingQuery = query(
+                    collection(db, 'animation_configs'),
+                    where('eventType', '==', eventType),
+                    where('status', '==', 'active')
+                );
+                
+                const existingSnapshot = await getDocs(existingQuery);
+                const deactivatePromises = [];
+                
+                existingSnapshot.forEach((doc) => {
+                    console.log('Deactivating existing animation:', doc.id);
+                    deactivatePromises.push(updateDoc(doc.ref, { status: 'inactive' }));
+                });
+                
+                // Wait for all deactivations to complete
+                await Promise.all(deactivatePromises);
+                
+                console.log(`Deactivated ${existingSnapshot.size} existing animations for event type: ${eventType}`);
+
+                // Save new configuration to Firestore
+                const docRef = await addDoc(collection(db, 'animation_configs'), config);
+                
+                // Also save animation data to a separate collection for easy access
+                await setDoc(doc(db, 'animations', selectedAnimation.animationId), {
+                    ...selectedAnimation,
+                    startTime: fullDateTime  // No timezone suffix - store as-is
+                });
+                
+                console.log('Configuration sauvegardée avec l\'ID: ', docRef.id);
+                
+                messageDiv.innerHTML = `
+                    <div class="message success">
+                        ✅ Configuration et animation sauvegardées avec succès !<br>
+                        ${existingSnapshot.size > 0 ? `<small>Remplacé ${existingSnapshot.size} animation(s) existante(s)</small><br>` : ''}
+                        <small>Config ID: ${docRef.id}</small><br>
+                        <small>Animation: ${selectedAnimation.animationId}</small>
+                    </div>
+                `;
+
+                form.reset();
+                preview.style.display = 'none';
+                
+            } catch (error) {
+                console.error('Erreur lors de la sauvegarde: ', error);
+                messageDiv.innerHTML = `
+                    <div class="message error">
+                        ❌ Erreur lors de la sauvegarde: ${error.message}
+                    </div>
+                `;
+            } finally {
+                submitBtn.disabled = false;
+                loading.classList.remove('show');
+            }
+        });
+
+        // No need to set min for time input since we handle today/tomorrow logic automatically
+    </script>
+</body>
+</html>

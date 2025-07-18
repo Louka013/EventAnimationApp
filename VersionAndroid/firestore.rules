@@ -1,0 +1,19 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Allow read and write access to animation_configs
+    match /animation_configs/{document} {
+      allow read, write: if true;
+    }
+    
+    // Allow read and write access to animations
+    match /animations/{document} {
+      allow read, write: if true;
+    }
+    
+    // Allow read and write access to animation_triggers
+    match /animation_triggers/{document} {
+      allow read, write: if true;
+    }
+  }
+}

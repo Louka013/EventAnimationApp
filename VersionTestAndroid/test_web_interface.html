@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Web Interface Date Format</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        
+        input, select, button {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        
+        button:hover {
+            background: #0056b3;
+        }
+        
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            background: #e8f5e8;
+            border-radius: 5px;
+            border: 1px solid #d4edda;
+        }
+        
+        .error {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Test Web Interface Date Format</h1>
+        
+        <form id="testForm">
+            <div class="form-group">
+                <label for="animationStartTime">⏰ Heure de début de l'animation</label>
+                <input type="datetime-local" id="animationStartTime" name="animationStartTime" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="eventType">🏟️ Type d'événement</label>
+                <select id="eventType" name="eventType" required>
+                    <option value="">Sélectionnez un type d'événement</option>
+                    <option value="football_stadium">🏈 Stade de Football</option>
+                    <option value="theater">🎭 Théâtre</option>
+                    <option value="concert_hall">🎵 Salle de Concert</option>
+                </select>
+            </div>
+            
+            <button type="submit">📅 Tester le format de date</button>
+        </form>
+        
+        <div id="result"></div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
+        import { getFirestore, collection, addDoc, serverTimestamp, doc, setDoc, query, where, getDocs, updateDoc } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyAWGEHQK8f61d4OCgreDRu0fXUjt_sG14w",
+            authDomain: "data-base-test-6ef5f.firebaseapp.com",
+            projectId: "data-base-test-6ef5f",
+            storageBucket: "data-base-test-6ef5f.firebasestorage.app",
+            messagingSenderId: "131672469882",
+            appId: "1:131672469882:web:5362c975813f74955be6c3"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        const form = document.getElementById('testForm');
+        const resultDiv = document.getElementById('result');
+
+        // Set default time to 2 minutes from now
+        const now = new Date();
+        const futureTime = new Date(now.getTime() + 2 * 60 * 1000);
+        const defaultTime = futureTime.toISOString().slice(0, 16);
+        document.getElementById('animationStartTime').value = defaultTime;
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = new FormData(form);
+            const animationStartTime = formData.get('animationStartTime');
+            const eventType = formData.get('eventType');
+            
+            try {
+                resultDiv.innerHTML = '<p>⏳ Test en cours...</p>';
+                
+                // Format the time like the web interface should
+                const formattedStartTime = animationStartTime.includes(':') && animationStartTime.split(':').length === 2 
+                    ? animationStartTime + ':00'  // Add seconds if missing
+                    : animationStartTime;
+                
+                const config = {
+                    animationStartTime: animationStartTime,
+                    eventType: eventType,
+                    animationType: 'blue_black_flash',
+                    animationData: {
+                        animationId: 'blue_black_flash',
+                        frameRate: 2,
+                        frameCount: 20,
+                        type: 'color_animation',
+                        users: {
+                            'user_1_1': {
+                                colors: [
+                                    {r: 0, g: 0, b: 255}, {r: 0, g: 0, b: 0}, {r: 0, g: 0, b: 255}, {r: 0, g: 0, b: 0},
+                                    {r: 0, g: 0, b: 255}, {r: 0, g: 0, b: 0}, {r: 0, g: 0, b: 255}, {r: 0, g: 0, b: 0},
+                                    {r: 0, g: 0, b: 255}, {r: 0, g: 0, b: 0}, {r: 0, g: 0, b: 255}, {r: 0, g: 0, b: 0},
+                                    {r: 0, g: 0, b: 255}, {r: 0, g: 0, b: 0}, {r: 0, g: 0, b: 255}, {r: 0, g: 0, b: 0},
+                                    {r: 0, g: 0, b: 255}, {r: 0, g: 0, b: 0}, {r: 0, g: 0, b: 255}, {r: 0, g: 0, b: 0}
+                                ]
+                            }
+                        }
+                    },
+                    createdAt: serverTimestamp(),
+                    status: 'active'
+                };
+                
+                // Deactivate existing animations
+                const existingQuery = query(
+                    collection(db, 'animation_configs'),
+                    where('eventType', '==', eventType),
+                    where('status', '==', 'active')
+                );
+                
+                const existingSnapshot = await getDocs(existingQuery);
+                const deactivatePromises = [];
+                
+                existingSnapshot.forEach((doc) => {
+                    deactivatePromises.push(updateDoc(doc.ref, { status: 'inactive' }));
+                });
+                
+                await Promise.all(deactivatePromises);
+                
+                // Add the new configuration
+                const docRef = await addDoc(collection(db, 'animation_configs'), config);
+                
+                // Save animation data with properly formatted time
+                await setDoc(doc(db, 'animations', 'blue_black_flash'), {
+                    animationId: 'blue_black_flash',
+                    frameRate: 2,
+                    frameCount: 20,
+                    type: 'color_animation',
+                    startTime: formattedStartTime + 'Z',  // Store with Z suffix for UTC
+                    users: config.animationData.users
+                });
+                
+                resultDiv.innerHTML = `
+                    <div class="result">
+                        <h3>✅ Test réussi!</h3>
+                        <p><strong>Format original:</strong> ${animationStartTime}</p>
+                        <p><strong>Format formaté:</strong> ${formattedStartTime}</p>
+                        <p><strong>Format Firebase:</strong> ${formattedStartTime}Z</p>
+                        <p><strong>Config ID:</strong> ${docRef.id}</p>
+                        <p><strong>Événement:</strong> ${eventType}</p>
+                        <p><strong>Animations désactivées:</strong> ${existingSnapshot.size}</p>
+                        <hr>
+                        <p><strong>🎯 Testez maintenant l'application Android:</strong></p>
+                        <ul>
+                            <li>Événement: ${eventType === 'football_stadium' ? 'Stade de foot' : eventType}</li>
+                            <li>Tribune: Tribune Nord</li>
+                            <li>Rangée: 1</li>
+                            <li>Siège: 1</li>
+                        </ul>
+                    </div>
+                `;
+                
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="result error">
+                        <h3>❌ Erreur!</h3>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+            }
+        });
+    </script>
+</body>
+</html>
