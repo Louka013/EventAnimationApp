@@ -4,6 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
+<<<<<<< HEAD
 This is an Android application called "EventAnimationApp" that provides a synchronized animation system for stadium events. The app integrates with Firebase for real-time data synchronization and user management.
 
 ## Project Structure
@@ -21,6 +22,9 @@ This is an Android application called "EventAnimationApp" that provides a synchr
 - **Purpose**: Development version with testing tools
 - **Features**: Debug tools, Python scripts, detailed logging
 - **Usage**: For development, testing, and debugging
+=======
+This is an Android application called "menuEvent" that provides a synchronized animation system for stadium events. The app integrates with Firebase for real-time data synchronization and user management.
+>>>>>>> db2a808dd793f92ddb06d15ca80ea1d3cc679507
 
 ## Key Architecture Components
 
@@ -46,21 +50,29 @@ This is an Android application called "EventAnimationApp" that provides a synchr
 
 ## Development Commands
 
+<<<<<<< HEAD
 ### Android Build Commands (Both Versions)
 ```bash
 # Navigate to desired version
 cd EventAnimationApp/VersionAndroid          # Production version
 cd EventAnimationApp/VersionTestAndroid      # Development version
 
+=======
+### Android Build Commands
+```bash
+>>>>>>> db2a808dd793f92ddb06d15ca80ea1d3cc679507
 # Build the Android app
 ./gradlew build
 
 # Build and install debug APK
 ./gradlew installDebug
 
+<<<<<<< HEAD
 # Build without lint checks (faster)
 ./gradlew assembleDebug -x lint
 
+=======
+>>>>>>> db2a808dd793f92ddb06d15ca80ea1d3cc679507
 # Run unit tests
 ./gradlew test
 
@@ -73,7 +85,11 @@ cd EventAnimationApp/VersionTestAndroid      # Development version
 
 ### Firebase Commands
 ```bash
+<<<<<<< HEAD
 # Deploy Firebase Functions (from either version)
+=======
+# Deploy Firebase Functions
+>>>>>>> db2a808dd793f92ddb06d15ca80ea1d3cc679507
 cd functions && npm run deploy
 
 # Start Firebase emulators
@@ -83,7 +99,11 @@ cd functions && npm run serve
 cd functions && npm run logs
 ```
 
+<<<<<<< HEAD
 ### Python Testing Scripts (VersionTestAndroid Only)
+=======
+### Python Testing Scripts
+>>>>>>> db2a808dd793f92ddb06d15ca80ea1d3cc679507
 Multiple Python scripts are available for testing various components:
 - `test_animation_config.py`: Tests animation configuration
 - `test_firebase_auth.py`: Tests Firebase authentication
@@ -129,6 +149,7 @@ The app requires proper Firebase configuration:
 4. All devices receive real-time updates and start animation simultaneously
 5. Each device displays colors based on their seat position
 
+<<<<<<< HEAD
 ## App Features
 
 ### Mobile App Enhancements
@@ -143,10 +164,13 @@ The app requires proper Firebase configuration:
 - **VersionAndroid**: Simplified "Animation Couleur" window with minimal information
 - **VersionTestAndroid**: Detailed debug information and development tools
 
+=======
+>>>>>>> db2a808dd793f92ddb06d15ca80ea1d3cc679507
 ## Security Notes
 
 - Service account keys are gitignored for security
 - Firebase rules control access to collections
+<<<<<<< HEAD
 - User authentication required for seat selection
 
 ## Development Guidelines
@@ -179,3 +203,6 @@ python test_synchronized_system.py  # Run tests
 - **Both versions share the same core functionality**
 - **Firebase configuration is identical between versions**
 - **QR codes are shared between both versions**
+=======
+- User authentication required for seat selection
+>>>>>>> db2a808dd793f92ddb06d15ca80ea1d3cc679507

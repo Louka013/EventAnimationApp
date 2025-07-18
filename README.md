@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # EventAnimationApp
 
 A synchronized animation system for stadium events that provides real-time color-based animations across multiple Android devices using Firebase for backend synchronization.
@@ -338,3 +339,6 @@ The project includes a web-based configuration interface:
 ## License
 
 This project is developed for stadium event animation systems.
+=======
+# menuEvent
+>>>>>>> db2a808dd793f92ddb06d15ca80ea1d3cc679507

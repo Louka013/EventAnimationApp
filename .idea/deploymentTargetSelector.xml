@@ -5,9 +5,12 @@
       <SelectionState runConfigName="menuEvent">
         <option name="selectionMode" value="DROPDOWN" />
       </SelectionState>
+<<<<<<< HEAD
       <SelectionState runConfigName="app">
         <option name="selectionMode" value="DROPDOWN" />
       </SelectionState>
+=======
+>>>>>>> db2a808dd793f92ddb06d15ca80ea1d3cc679507
     </selectionStates>
   </component>
 </project>
